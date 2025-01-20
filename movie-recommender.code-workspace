@@ -1,0 +1,26 @@
+{
+    "folders": [
+      {
+        "path": "."
+      }
+    ],
+    "settings": {
+      "editor.formatOnSave": true,
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+      "[python]": {
+        "editor.defaultFormatter": "ms-python.python"
+      },
+      "python.formatting.provider": "black",
+      "python.linting.enabled": true,
+      "python.linting.pylintEnabled": true
+    },
+    "extensions": {
+      "recommendations": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "bradlc.vscode-tailwindcss"
+      ]
+    }
+  }
