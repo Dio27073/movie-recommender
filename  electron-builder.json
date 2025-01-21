@@ -1,0 +1,21 @@
+{
+    "appId": "com.yourdomain.movierecommender",
+    "productName": "Movie Recommender",
+    "directories": {
+        "output": "dist"
+    },
+    "files": [
+        "dist/**/*",
+        "backend/dist/**/*"
+    ],
+    "mac": {
+        "category": "public.app-category.entertainment",
+        "target": ["dmg", "zip"]
+    },
+    "win": {
+        "target": ["nsis", "portable"]
+    },
+    "linux": {
+        "target": ["AppImage", "deb"]
+    }
+}
