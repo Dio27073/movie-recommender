@@ -41,51 +41,37 @@ def get_db():
     finally:
         db.close()
 
-# Add test data on startup
+import requests
+
+TMDB_API_KEY = "55975ac268099c9f0957d3aafb5eeae8"
+TMDB_BASE_URL = "https://api.themoviedb.org/3"
+TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
+
 @app.on_event("startup")
 async def startup_event():
     db = SessionLocal()
-    # Check if we already have movies
     if db.query(models.Movie).count() == 0:
-        # Add some test movies
-        test_movies = [
-            {
-                "title": "Inception",
-                "description": "A thief enters dreams to steal secrets.",
-                "genres": ["Action", "Sci-Fi"],
-                "release_year": 2010,
-                "average_rating": 4.8,
-            },
-            {
-                "title": "The Shawshank Redemption",
-                "description": "Two imprisoned men bond over several years.",
-                "genres": ["Drama"],
-                "release_year": 1994,
-                "average_rating": 4.9,
-            },
-            {
-                "title": "The Dark Knight",
-                "description": "Batman faces his greatest challenge yet.",
-                "genres": ["Action", "Drama", "Crime"],
-                "release_year": 2008,
-                "average_rating": 4.7,
-            },
-            {
-                "title": "Pulp Fiction",
-                "description": "Various interconnected crime stories in Los Angeles.",
-                "genres": ["Crime", "Drama"],
-                "release_year": 1994,
-                "average_rating": 4.8,
-            }
-        ]
+        # Fetch popular movies from TMDB
+        response = requests.get(
+            f"{TMDB_BASE_URL}/movie/popular",
+            params={"api_key": TMDB_API_KEY, "language": "en-US", "page": 1}
+        )
+        movies_data = response.json()["results"]
         
-        for movie_data in test_movies:
+        for movie_data in movies_data[:10]:  # Get first 10 movies
+            # Get additional movie details
+            movie_details = requests.get(
+                f"{TMDB_BASE_URL}/movie/{movie_data['id']}",
+                params={"api_key": TMDB_API_KEY, "language": "en-US"}
+            ).json()
+            
             movie = models.Movie(
                 title=movie_data["title"],
-                description=movie_data["description"],
-                genres=",".join(movie_data["genres"]),  # Join array to string
-                release_year=movie_data["release_year"],
-                average_rating=movie_data["average_rating"]
+                description=movie_data["overview"],
+                genres=",".join([genre["name"] for genre in movie_details["genres"]]),
+                release_year=int(movie_data["release_date"][:4]),
+                average_rating=movie_data["vote_average"],
+                imageUrl=f"{TMDB_IMAGE_BASE_URL}{movie_data['poster_path']}"
             )
             db.add(movie)
         

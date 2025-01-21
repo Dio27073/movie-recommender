@@ -1,8 +1,9 @@
+# models.py
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Float, Table
 from sqlalchemy.orm import relationship
 from .database import Base
 
-# User-Movie Rating Association Table
+# User-Movie Rating Association Table remains the same
 user_movie_ratings = Table(
     'user_movie_ratings',
     Base.metadata,
@@ -32,6 +33,7 @@ class Movie(Base):
     genres = Column(String)  # Store as comma-separated values
     release_year = Column(Integer)
     average_rating = Column(Float, default=0.0)
+    imageUrl = Column(String)  # Added this line for movie posters
     
     # Relationships
     rated_by = relationship("User", secondary=user_movie_ratings, back_populates="ratings")

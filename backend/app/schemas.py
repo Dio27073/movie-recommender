@@ -7,7 +7,9 @@ class MovieBase(BaseModel):
     genres: List[str]  # Changed from str to List[str]
     release_year: int
     average_rating: float = 0.0
-    
+    imageUrl: Optional[str] = None  # Added this line
+
+
 class MovieCreate(MovieBase):
     pass
 
