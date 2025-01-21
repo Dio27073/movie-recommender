@@ -4,10 +4,10 @@ from typing import List, Optional
 class MovieBase(BaseModel):
     title: str
     description: Optional[str] = None
-    genres: str
+    genres: List[str]  # Changed from str to List[str]
     release_year: int
     average_rating: float = 0.0
-
+    
 class MovieCreate(MovieBase):
     pass
 

@@ -1,103 +1,107 @@
+// src/components/movies/MovieRecommendations.tsx
 import React, { useState } from 'react';
-import { Star } from 'lucide-react';
-import { MovieCardProps, MovieFilterProps, Movie } from '../../features/movies/types';
-
-const MovieCard: React.FC<MovieCardProps> = ({ 
-  title, 
-  year, 
-  rating, 
-  imageUrl = '/api/placeholder/200/300', 
-  onRate 
-}) => {
-  const [isHovered, setIsHovered] = useState(false);
-  
-  return (
-    <div 
-      className="bg-white rounded-lg shadow-lg overflow-hidden transform transition duration-200 hover:scale-105"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <img
-        src={imageUrl}
-        alt={title}
-        className="w-full h-64 object-cover"
-      />
-      <div className="p-4">
-        <h3 className="text-xl font-semibold text-gray-800 mb-2">{title}</h3>
-        <p className="text-gray-600 mb-2">{year}</p>
-        <div className="flex items-center">
-          <Star className="w-5 h-5 text-yellow-500" />
-          <span className="ml-2 text-gray-700">{rating}</span>
-        </div>
-      </div>
-      {isHovered && (
-        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center transition-opacity duration-200">
-          <button 
-            onClick={() => onRate(5)}
-            className="bg-white p-3 rounded-full hover:bg-gray-100 transition-colors duration-200"
-          >
-            <Star className="w-6 h-6 text-yellow-500" />
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const MovieFilter: React.FC<MovieFilterProps> = ({ genres, onFilterChange }) => {
-  return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
-      <h2 className="text-xl font-semibold text-gray-800 mb-4">Filter by Genre</h2>
-      <div className="space-y-3">
-        {genres.map((genre) => (
-          <label key={genre} className="flex items-center space-x-3 text-gray-700">
-            <input
-              type="checkbox"
-              className="form-checkbox h-5 w-5 text-blue-600 rounded border-gray-300"
-              onChange={(e) => onFilterChange(genre, e.target.checked)}
-            />
-            <span className="text-base">{genre}</span>
-          </label>
-        ))}
-      </div>
-    </div>
-  );
-};
+import { Star, Loader } from 'lucide-react';
+import { Movie } from '../../features/movies/types';
+import { useMovies, useRateMovie } from '../../features/movies/hooks';
+import { MovieCard } from './MovieCard';
+import { MovieFilter } from './MovieFilter';
 
 const MovieRecommendations: React.FC = () => {
-  const [movies, setMovies] = useState<Movie[]>([
-    { id: 1, title: "Sample Movie 1", year: 2024, rating: 4.5 },
-    { id: 2, title: "Sample Movie 2", year: 2024, rating: 4.0 }
-  ]);
+  const { movies, loading: moviesLoading, error: moviesError } = useMovies();
+  const { rateMovie, loading: ratingLoading, error: ratingError } = useRateMovie();
+  const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set());
 
-  const handleRate = (movieId: number, rating: number): void => {
-    console.log(`Rating movie ${movieId} with ${rating} stars`);
+  console.log('Current movies state:', movies);
+  console.log('Loading state:', moviesLoading);
+  console.log('Error state:', moviesError);
+
+  const handleRate = async (movieId: number, rating: number): Promise<void> => {
+    console.log('Rating movie:', movieId, 'with rating:', rating);
+    const success = await rateMovie({ movie_id: movieId, rating });
+    if (success) {
+      console.log('Rating updated successfully');
+    }
   };
+
+  const handleFilterChange = (genre: string, checked: boolean) => {
+    console.log('Filter change:', genre, checked);
+    const newGenres = new Set(selectedGenres);
+    if (checked) {
+      newGenres.add(genre);
+    } else {
+      newGenres.delete(genre);
+    }
+    setSelectedGenres(newGenres);
+  };
+
+  // Helper function to convert genres to array
+  const getGenresArray = (genres: string | string[]): string[] => {
+    if (Array.isArray(genres)) {
+      return genres;
+    }
+    return genres.split(',').map((g: string) => g.trim());
+  };
+
+  // Get unique genres from all movies
+  const allGenres = Array.from(
+    new Set(
+      movies.flatMap(movie => getGenresArray(movie.genres))
+    )
+  ).sort();
+
+  const filteredMovies = selectedGenres.size === 0 
+    ? movies 
+    : movies.filter(movie => {
+        const movieGenres = getGenresArray(movie.genres);
+        return movieGenres.some(genre => selectedGenres.has(genre));
+      });
+
+  if (moviesError || ratingError) {
+    return (
+      <div className="text-red-600 p-4">
+        {moviesError || ratingError}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Movie Recommender</h1>
       
+      {movies.length === 0 && !moviesLoading && (
+        <div className="text-gray-600 p-4 mb-4">
+          No movies found. Please check the console for errors.
+        </div>
+      )}
+      
       <div className="flex flex-col md:flex-row gap-8">
         <aside className="w-full md:w-64">
           <MovieFilter
-            genres={["Action", "Comedy", "Drama", "Horror", "Sci-Fi"]}
-            onFilterChange={(genre: string, checked: boolean) => 
-              console.log(`${genre}: ${checked}`)
-            }
+            genres={allGenres}
+            selectedGenres={selectedGenres}
+            onFilterChange={handleFilterChange}
           />
         </aside>
         
         <main className="flex-1">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {movies.map((movie) => (
-              <MovieCard
-                key={movie.id}
-                {...movie}
-                onRate={(rating) => handleRate(movie.id, rating)}
-              />
-            ))}
-          </div>
+          {moviesLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <Loader className="w-8 h-8 text-blue-500 animate-spin" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {filteredMovies.map((movie) => (
+                <MovieCard
+                  key={movie.id}
+                  movie={{
+                    ...movie,
+                    genres: getGenresArray(movie.genres),
+                  }}
+                  onRate={(rating) => handleRate(movie.id, rating)}
+                />
+              ))}
+            </div>
+          )}
         </main>
       </div>
     </div>
