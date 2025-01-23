@@ -31,7 +31,7 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
   const params = useMemo(() => {
     const urlParams = new URLSearchParams({
       page: page.toString(),
-      per_page: '10',
+      per_page: '12',
     });
 
     if (filters.genres?.size) {
