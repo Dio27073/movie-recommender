@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from . import models, schemas
 from .database import SessionLocal, engine
 import time
-from sqlalchemy import or_ 
+from sqlalchemy import or_, desc, asc
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -122,6 +122,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
+
 @app.get("/movies/", response_model=schemas.PaginatedMovieResponse)
 def get_movies(
     page: int = 1, 
@@ -130,6 +131,7 @@ def get_movies(
     min_year: int = None,
     max_year: int = None,
     min_rating: float = None,
+    sort: str = "release_date_desc",  # Default sort
     db: Session = Depends(get_db)
     ):
     
@@ -158,6 +160,21 @@ def get_movies(
     # Apply rating filter
     if min_rating is not None:
         query = query.filter(models.Movie.average_rating >= min_rating)
+    
+    # Apply sorting
+    if sort:
+        if sort == "release_date_desc":
+            query = query.order_by(desc(models.Movie.release_year))
+        elif sort == "release_date_asc":
+            query = query.order_by(asc(models.Movie.release_year))
+        elif sort == "rating_desc":
+            query = query.order_by(desc(models.Movie.average_rating))
+        elif sort == "rating_asc":
+            query = query.order_by(asc(models.Movie.average_rating))
+        elif sort == "title_asc":
+            query = query.order_by(asc(models.Movie.title))
+        elif sort == "title_desc":
+            query = query.order_by(desc(models.Movie.title))
     
     # Get total number of movies for pagination info
     total_movies = query.count()

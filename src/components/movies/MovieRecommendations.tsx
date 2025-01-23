@@ -1,23 +1,15 @@
 // src/components/movies/MovieRecommendations.tsx
 import React, { useState, useMemo, useCallback } from 'react';
 import { Star, Loader, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Movie } from '../../features/movies/types';
-import { useMovies, useRateMovie, useDebounce } from '../../features/movies/hooks';
+import { 
+  Movie, 
+  FilterParams as GlobalFilterParams,
+  FilterValue as GlobalFilterValue,
+  SortOption 
+} from '../../features/movies/types';import { useMovies, useRateMovie, useDebounce } from '../../features/movies/hooks';
 import { MovieCard } from './MovieCard';
 import { MovieFilter } from './MovieFilter';
 
-interface FilterParams {
-  genres?: Set<string>;
-  yearRange?: [number, number];
-  minRating?: number;
-  page?: number;
-  per_page?: number;
-}
-
-type FilterValue = 
-  | { genre: string; checked: boolean }
-  | [number, number]
-  | number;
 
 interface PaginationProps {
   currentPage: number;
@@ -105,15 +97,17 @@ const MovieRecommendations: React.FC = () => {
   const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set());
   const [yearRange, setYearRange] = useState<[number, number]>([1888, 2024]);
   const [minRating, setMinRating] = useState(0);
+  const [sortBy, setSortBy] = useState<SortOption>('release_date_desc');
   
   const debouncedYearRange = useDebounce(yearRange, 500);
   const debouncedMinRating = useDebounce(minRating, 500);
   
-  const filters = useMemo(() => ({
+  const filters = useMemo((): GlobalFilterParams => ({
     genres: selectedGenres,
     yearRange: debouncedYearRange,
     minRating: debouncedMinRating,
-  }), [selectedGenres, debouncedYearRange, debouncedMinRating]);
+    sort: sortBy,
+  }), [selectedGenres, debouncedYearRange, debouncedMinRating, sortBy]);
   
   const { 
     movies, 
@@ -132,7 +126,7 @@ const MovieRecommendations: React.FC = () => {
     const success = await rateMovie({ movie_id: movieId, rating });
   }, [rateMovie]);
 
-  const handleFilterChange = useCallback((filterType: keyof FilterParams, value: FilterValue) => {
+  const handleFilterChange = useCallback((filterType: keyof GlobalFilterParams, value: GlobalFilterValue) => {
     setCurrentPage(1);
     
     switch (filterType) {
@@ -155,6 +149,10 @@ const MovieRecommendations: React.FC = () => {
         
       case 'minRating':
         setMinRating(value as number);
+        break;
+  
+      case 'sort':
+        setSortBy(value as SortOption);
         break;
     }
   }, []);
@@ -197,6 +195,7 @@ const MovieRecommendations: React.FC = () => {
         selectedGenres={selectedGenres}
         yearRange={yearRange}
         minRating={minRating}
+        sortBy={sortBy}
         onFilterChange={handleFilterChange}
         minYear={1888}
         maxYear={2024}

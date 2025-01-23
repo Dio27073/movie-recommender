@@ -67,16 +67,25 @@ import {
     }
   
     // Movie Methods
-    async getMovies(skip = 0, limit = 100): Promise<Movie[]> {
-      try {
-        console.log('Fetching movies...');
-        const movies = await this.request<Movie[]>(`/movies/?skip=${skip}&limit=${limit}`);
-        console.log('Fetched movies:', movies);
-        return movies;
-      } catch (error) {
-        console.error('Error fetching movies:', error);
-        throw error;
-      }
+    async getMovies(params: {
+      page?: number;
+      per_page?: number;
+      genres?: string;
+      min_year?: number;
+      max_year?: number;
+      min_rating?: number;
+      sort?: string;
+    } = {}): Promise<any> {
+      const queryParams = new URLSearchParams();
+      
+      // Add all params to query string
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          queryParams.append(key, value.toString());
+        }
+      });
+  
+      return this.request<any>(`/movies/?${queryParams.toString()}`);
     }
   
     async createMovie(movie: MovieCreate): Promise<Movie> {
