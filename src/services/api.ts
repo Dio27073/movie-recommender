@@ -88,6 +88,10 @@ import {
       return this.request<any>(`/movies/?${queryParams.toString()}`);
     }
   
+    async getMovie(id: string | number): Promise<Movie> {
+      return this.request<Movie>(`/movies/${id}`);
+    }
+    
     async createMovie(movie: MovieCreate): Promise<Movie> {
       return this.request<Movie>('/movies/', {
         method: 'POST',

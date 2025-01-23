@@ -1,10 +1,21 @@
 import React from 'react';
 import { Star } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { MovieCardProps } from '../../features/movies/types';
 
 export const MovieCard: React.FC<MovieCardProps> = ({ movie }) => {
+  const navigate = useNavigate();
+
+  const handleClick = () => {
+    // Navigate to movie details and pass the movie data as state
+    navigate(`/movie/${movie.id}`, { state: { movie } });
+  };
+
   return (
-    <div className="relative bg-white rounded-lg shadow-lg overflow-hidden transform transition-all duration-200 hover:shadow-xl">
+    <div 
+      onClick={handleClick}
+      className="cursor-pointer relative bg-white rounded-lg shadow-lg overflow-hidden transform transition-all duration-200 hover:shadow-xl"
+    >
       <img
         src={movie.imageUrl || '/api/placeholder/200/300'}
         alt={movie.title}

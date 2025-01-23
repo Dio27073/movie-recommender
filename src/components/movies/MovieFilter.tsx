@@ -42,7 +42,7 @@ export const MovieFilter: React.FC<MovieFilterProps> = ({
   return (
     <div className="bg-white shadow-sm p-4 mb-6 rounded-lg">
       <div className="flex flex-wrap items-center gap-4">
-        <div className="flex flex-col w-[150px]">
+        <div className="flex flex-col w-[50px]">
           <div className="text-sm font-medium mb-1">Genre</div>
           <FormControl size="small">
             <Select
