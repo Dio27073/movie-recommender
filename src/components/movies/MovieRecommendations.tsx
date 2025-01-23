@@ -192,56 +192,52 @@ const MovieRecommendations: React.FC = () => {
     <div className="min-h-screen bg-gray-100 p-8">
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Movie Recommender</h1>
       
+      <MovieFilter
+        genres={allGenres}
+        selectedGenres={selectedGenres}
+        yearRange={yearRange}
+        minRating={minRating}
+        onFilterChange={handleFilterChange}
+        minYear={1888}
+        maxYear={2024}
+      />
+
       {movies.length === 0 && !moviesLoading && (
         <div className="text-gray-600 p-4 mb-4">
           No movies found. Please check back later.
         </div>
       )}
       
-      <div className="flex flex-col md:flex-row gap-8">
-        <aside className="w-full md:w-64">
-          <MovieFilter
-            genres={allGenres}
-            selectedGenres={selectedGenres}
-            yearRange={yearRange}
-            minRating={minRating}
-            onFilterChange={handleFilterChange}
-            minYear={1888}
-            maxYear={2024}
-          />
-        </aside>
-        
-        <main className="flex-1">
-          {moviesLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <Loader className="w-8 h-8 text-blue-500 animate-spin" />
-            </div>
-          ) : (
-            <div className="flex flex-col">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {movies.map((movie) => (
-                  <MovieCard
-                    key={movie.id}
-                    movie={{
-                      ...movie,
-                      genres: getGenresArray(movie.genres),
-                    }}
-                    onRate={(rating) => handleRate(movie.id, rating)}
-                  />
-                ))}
-              </div>
-              
-              {pagination && pagination.totalPages > 1 && (
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={pagination.totalPages}
-                  onPageChange={handlePageChange}
+      <main>
+        {moviesLoading ? (
+          <div className="flex justify-center items-center h-64">
+            <Loader className="w-8 h-8 text-blue-500 animate-spin" />
+          </div>
+        ) : (
+          <div className="flex flex-col">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {movies.map((movie) => (
+                <MovieCard
+                  key={movie.id}
+                  movie={{
+                    ...movie,
+                    genres: getGenresArray(movie.genres),
+                  }}
+                  onRate={(rating) => handleRate(movie.id, rating)}
                 />
-              )}
+              ))}
             </div>
-          )}
-        </main>
-      </div>
+            
+            {pagination && pagination.totalPages > 1 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={pagination.totalPages}
+                onPageChange={handlePageChange}
+              />
+            )}
+          </div>
+        )}
+      </main>
     </div>
   );
 };

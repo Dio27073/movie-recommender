@@ -1,8 +1,12 @@
-// src/components/movies/MovieFilter.tsx
 import React from 'react';
 import { MovieFilterProps } from '../../features/movies/types';
 import Box from '@mui/material/Box';
 import Slider from '@mui/material/Slider';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import Chip from '@mui/material/Chip';
 
 export const MovieFilter: React.FC<MovieFilterProps> = ({ 
   genres, 
@@ -13,69 +17,67 @@ export const MovieFilter: React.FC<MovieFilterProps> = ({
   minYear,
   maxYear
 }) => {
-  const handleYearRangeChange = (_event: Event, newValue: number | number[]) => {
-    onFilterChange('yearRange', newValue as [number, number]);
-  };
-
-  const handleRatingChange = (_event: Event, newValue: number | number[]) => {
-    onFilterChange('minRating', newValue as number);
+  const handleGenreChange = (event: any) => {
+    const value = event.target.value;
+    onFilterChange('genres', { 
+      genre: value, 
+      checked: !selectedGenres.has(value) 
+    });
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6 space-y-8">
-      {/* Genre Filter */}
-      <div>
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Filter by Genre</h2>
-        <div className="space-y-3">
-          {genres.map((genre) => (
-            <label key={genre} className="flex items-center space-x-3 text-gray-700">
-              <input
-                type="checkbox"
-                checked={selectedGenres.has(genre)}
-                className="form-checkbox h-5 w-5 text-blue-600 rounded border-gray-300"
-                onChange={(e) => onFilterChange('genres', { genre, checked: e.target.checked })}
-              />
-              <span className="text-base">{genre}</span>
-            </label>
+    <div className="bg-white shadow-sm p-4 mb-6 rounded-lg">
+      <div className="flex flex-wrap items-center gap-4">
+        <FormControl size="small" className="min-w-[200px] flex-grow-0">
+          <InputLabel>Genre</InputLabel>
+          <Select
+            value=""
+            onChange={handleGenreChange}
+            label="Genre"
+          >
+            {genres.map((genre) => (
+              <MenuItem 
+                key={genre} 
+                value={genre}
+                disabled={selectedGenres.has(genre)}
+              >
+                {genre}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <div className="flex-1 flex flex-wrap gap-2">
+          {Array.from(selectedGenres).map((genre) => (
+            <Chip
+              key={genre}
+              label={genre}
+              onDelete={() => onFilterChange('genres', { genre, checked: false })}
+              size="small"
+            />
           ))}
         </div>
-      </div>
 
-      {/* Year Range Slider */}
-      <div>
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Release Year</h2>
-        <Box className="px-2">
+        <Box className="w-[200px]">
+          <div className="text-sm font-medium mb-1">Year: {yearRange[0]} - {yearRange[1]}</div>
           <Slider
             value={yearRange}
-            onChange={handleYearRangeChange}
-            valueLabelDisplay="auto"
+            onChange={(_, newValue) => onFilterChange('yearRange', newValue as [number, number])}
             min={minYear}
             max={maxYear}
             size="small"
-            marks={[
-              { value: minYear, label: minYear.toString() },
-              { value: maxYear, label: maxYear.toString() }
-            ]}
           />
         </Box>
-      </div>
 
-      {/* Rating Threshold */}
-      <div>
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Minimum Rating</h2>
-        <Box className="px-2">
+        <Box className="w-[150px]">
+          <div className="text-sm font-medium mb-1">Min Rating: {minRating}</div>
           <Slider
             value={minRating}
-            onChange={handleRatingChange}
-            valueLabelDisplay="auto"
+            onChange={(_, newValue) => onFilterChange('minRating', newValue as number)}
             min={0}
             max={5}
             step={0.5}
             size="small"
-            marks={[
-              { value: 0, label: '0' },
-              { value: 5, label: '5' }
-            ]}
           />
         </Box>
       </div>

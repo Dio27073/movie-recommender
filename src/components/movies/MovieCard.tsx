@@ -1,27 +1,10 @@
-// src/components/movies/MovieCard.tsx
-import React, { useState } from 'react';
-import { Star, Loader } from 'lucide-react';
+import React from 'react';
+import { Star } from 'lucide-react';
 import { MovieCardProps } from '../../features/movies/types';
 
-export const MovieCard: React.FC<MovieCardProps> = ({ movie, onRate }) => {
-  const [isHovered, setIsHovered] = useState(false);
-  const [isRating, setIsRating] = useState(false);
-  
-  const handleRate = async (rating: number) => {
-    setIsRating(true);
-    try {
-      await onRate(rating);
-    } finally {
-      setIsRating(false);
-    }
-  };
-
+export const MovieCard: React.FC<MovieCardProps> = ({ movie }) => {
   return (
-    <div 
-      className="relative bg-white rounded-lg shadow-lg overflow-hidden transform transition-all duration-200 hover:shadow-xl"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
+    <div className="relative bg-white rounded-lg shadow-lg overflow-hidden transform transition-all duration-200 hover:shadow-xl">
       <img
         src={movie.imageUrl || '/api/placeholder/200/300'}
         alt={movie.title}
@@ -51,29 +34,6 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie, onRate }) => {
           ))}
         </div>
       </div>
-
-      {isHovered && (
-        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center transition-opacity duration-200">
-          {isRating ? (
-            <Loader className="w-8 h-8 text-white animate-spin" />
-          ) : (
-            <div className="flex gap-2">
-              {[1, 2, 3, 4, 5].map((rating) => (
-                <button 
-                  key={rating}
-                  onClick={() => handleRate(rating)}
-                  className="p-2 hover:scale-110 transition-transform duration-150"
-                >
-                  <Star 
-                    className="w-8 h-8 text-yellow-400 fill-current" 
-                    data-rating={rating}
-                  />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 };
