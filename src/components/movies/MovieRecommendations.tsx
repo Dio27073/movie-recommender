@@ -187,8 +187,10 @@ const MovieRecommendations: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">Movie Recommender</h1>
+    <div className="min-h-screen bg-gray-100 dark:bg-dark-primary p-8">
+      <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">
+        Movie Recommender
+      </h1>
       
       <MovieFilter
         genres={allGenres}
@@ -200,9 +202,9 @@ const MovieRecommendations: React.FC = () => {
         minYear={1888}
         maxYear={2024}
       />
-
+  
       {movies.length === 0 && !moviesLoading && (
-        <div className="text-gray-600 p-4 mb-4">
+        <div className="text-gray-600 dark:text-gray-400 p-4 mb-4">
           No movies found. Please check back later.
         </div>
       )}
@@ -210,7 +212,7 @@ const MovieRecommendations: React.FC = () => {
       <main>
         {moviesLoading ? (
           <div className="flex justify-center items-center h-64">
-            <Loader className="w-8 h-8 text-blue-500 animate-spin" />
+            <Loader className="w-8 h-8 text-blue-500 dark:text-blue-400 animate-spin" />
           </div>
         ) : (
           <div className="flex flex-col">
@@ -238,7 +240,7 @@ const MovieRecommendations: React.FC = () => {
         )}
       </main>
     </div>
-  );
+  );  
 };
 
 export default MovieRecommendations;
