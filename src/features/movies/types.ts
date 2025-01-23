@@ -1,5 +1,4 @@
 // src/features/movies/types.ts
-// src/features/movies/types.ts
 export interface Movie {
   id: number;
   title: string;
@@ -15,11 +14,37 @@ export interface MovieCardProps {
   onRate: (rating: number) => Promise<void>;
 }
 
+export interface FilterParams {
+  genres?: Set<string>;
+  yearRange?: [number, number];
+  minRating?: number;
+  page?: number;
+  per_page?: number;
+}
+
 export interface MovieFilterProps {
   genres: string[];
   selectedGenres: Set<string>;
-  onFilterChange: (genre: string, checked: boolean) => void;
+  yearRange: [number, number];
+  minRating: number;
+  onFilterChange: (filterType: keyof FilterParams, value: FilterValue) => void;
+  minYear: number;
+  maxYear: number;
 }
+
+export interface FilterParams {
+  genres?: Set<string>;
+  yearRange?: [number, number];
+  minRating?: number;
+  page?: number;
+  per_page?: number;
+}
+
+// Add this type to handle different filter value types
+export type FilterValue = 
+  | { genre: string; checked: boolean }  // for genre changes
+  | [number, number]                     // for year range
+  | number;                              // for rating
 
 export interface MovieCreate {
   title: string;
@@ -68,3 +93,4 @@ export interface ApiError {
 export interface RatingResponse {
   message: string;
 }
+

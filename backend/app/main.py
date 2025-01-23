@@ -9,6 +9,8 @@ from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from . import models, schemas
 from .database import SessionLocal, engine
+import time
+from sqlalchemy import or_ 
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -51,31 +53,54 @@ TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
 async def startup_event():
     db = SessionLocal()
     if db.query(models.Movie).count() == 0:
-        # Fetch popular movies from TMDB
-        response = requests.get(
-            f"{TMDB_BASE_URL}/movie/popular",
-            params={"api_key": TMDB_API_KEY, "language": "en-US", "page": 1}
-        )
-        movies_data = response.json()["results"]
+        # Fetch multiple pages of popular movies from TMDB
+        total_pages = 20  # This will give us about 400 movies
         
-        for movie_data in movies_data[:10]:  # Get first 10 movies
-            # Get additional movie details
-            movie_details = requests.get(
-                f"{TMDB_BASE_URL}/movie/{movie_data['id']}",
-                params={"api_key": TMDB_API_KEY, "language": "en-US"}
-            ).json()
-            
-            movie = models.Movie(
-                title=movie_data["title"],
-                description=movie_data["overview"],
-                genres=",".join([genre["name"] for genre in movie_details["genres"]]),
-                release_year=int(movie_data["release_date"][:4]),
-                average_rating=movie_data["vote_average"],
-                imageUrl=f"{TMDB_IMAGE_BASE_URL}{movie_data['poster_path']}"
+        for page in range(1, total_pages + 1):
+            response = requests.get(
+                f"{TMDB_BASE_URL}/movie/popular",
+                params={
+                    "api_key": TMDB_API_KEY,
+                    "language": "en-US",
+                    "page": page
+                }
             )
-            db.add(movie)
-        
-        db.commit()
+            movies_data = response.json()["results"]
+            
+            for movie_data in movies_data:
+                try:
+                    # Get additional movie details
+                    movie_details = requests.get(
+                        f"{TMDB_BASE_URL}/movie/{movie_data['id']}",
+                        params={"api_key": TMDB_API_KEY, "language": "en-US"}
+                    ).json()
+                    
+                    # Only add movies with complete data
+                    if all(key in movie_data for key in ["title", "overview", "release_date", "vote_average", "poster_path"]):
+                        # Convert TMDB rating (0-10) to our scale (0-5)
+                        converted_rating = (movie_data["vote_average"] / 2)
+                        # Ensure the rating is within our constraints
+                        converted_rating = min(max(converted_rating, 0), 5)
+                        
+                        movie = models.Movie(
+                            title=movie_data["title"],
+                            description=movie_data["overview"],
+                            genres=",".join([genre["name"] for genre in movie_details["genres"]]),
+                            release_year=int(movie_data["release_date"][:4]),
+                            average_rating=converted_rating,
+                            imageUrl=f"{TMDB_IMAGE_BASE_URL}{movie_data['poster_path']}"
+                        )
+                        db.add(movie)
+                except Exception as e:
+                    print(f"Error processing movie {movie_data.get('title', 'Unknown')}: {str(e)}")
+                    continue
+            
+            # Commit after each page to avoid losing everything if there's an error
+            db.commit()
+            
+            # Add a small delay to avoid rate limiting
+            time.sleep(0.5)
+    
     db.close()
 
 def create_access_token(data: dict):
@@ -97,31 +122,94 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
-@app.get("/movies/", response_model=List[schemas.Movie])
-def get_movies(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    movies = db.query(models.Movie).offset(skip).limit(limit).all()
-    # Transform the movies to include genres as arrays
-    for movie in movies:
-        if movie.genres:
-            movie.genres = [genre.strip() for genre in movie.genres.split(",")]
-    return movies
+@app.get("/movies/", response_model=schemas.PaginatedMovieResponse)
+def get_movies(
+    page: int = 1, 
+    per_page: int = 10, 
+    genres: str = None,
+    min_year: int = None,
+    max_year: int = None,
+    min_rating: float = None,
+    db: Session = Depends(get_db)
+    ):
+    
+    # Calculate offset based on page number and items per page
+    offset = (page - 1) * per_page
+    
+    # Start with base query
+    query = db.query(models.Movie)
+    
+    # Apply genre filtering if genres parameter is provided
+    if genres:
+        genre_list = genres.split(',')
+        query = query.filter(
+            or_(*[
+                models.Movie.genres.like(f"%{genre}%")
+                for genre in genre_list
+            ])
+        )
+    
+    # Apply year range filter
+    if min_year:
+        query = query.filter(models.Movie.release_year >= min_year)
+    if max_year:
+        query = query.filter(models.Movie.release_year <= max_year)
+    
+    # Apply rating filter
+    if min_rating is not None:
+        query = query.filter(models.Movie.average_rating >= min_rating)
+    
+    # Get total number of movies for pagination info
+    total_movies = query.count()
+    total_pages = (total_movies + per_page - 1) // per_page
+    
+    # Get movies for the current page
+    movies = query.offset(offset).limit(per_page).all()
+    
+    # Convert each movie object to a compatible format
+    movie_list = []
+    for db_movie in movies:
+        movie_dict = {
+            "id": db_movie.id,
+            "title": db_movie.title,
+            "description": db_movie.description,
+            "release_year": db_movie.release_year,
+            "average_rating": db_movie.average_rating,
+            "imageUrl": db_movie.imageUrl,
+            "genres": db_movie.genres.split(",") if db_movie.genres else []
+        }
+        movie_list.append(movie_dict)
+    
+    return {
+        "items": movie_list,
+        "total": total_movies,
+        "page": page,
+        "total_pages": total_pages,
+        "has_next": page < total_pages,
+        "has_prev": page > 1
+    }
 
 @app.post("/movies/", response_model=schemas.Movie)
 def create_movie(movie: schemas.MovieCreate, db: Session = Depends(get_db)):
-    # Convert genres array to comma-separated string for storage
-    movie_dict = movie.dict()
-    if isinstance(movie_dict["genres"], list):
-        movie_dict["genres"] = ",".join(movie_dict["genres"])
+    # Convert the genres list to a comma-separated string for storage
+    movie_data = movie.model_dump()
+    movie_data["genres"] = ",".join(movie_data["genres"]) if movie_data["genres"] else ""
     
-    db_movie = models.Movie(**movie_dict)
+    db_movie = models.Movie(**movie_data)
     db.add(db_movie)
     db.commit()
     db.refresh(db_movie)
     
-    # Convert genres back to array for response
-    if db_movie.genres:
-        db_movie.genres = [genre.strip() for genre in db_movie.genres.split(",")]
-    return db_movie
+    # Convert back to the format expected by the schema
+    return {
+        "id": db_movie.id,
+        "title": db_movie.title,
+        "description": db_movie.description,
+        "release_year": db_movie.release_year,
+        "average_rating": db_movie.average_rating,
+        "imageUrl": db_movie.imageUrl,
+        "genres": db_movie.genres.split(",") if db_movie.genres else []
+    }
 
 @app.post("/rate/")
 def rate_movie(rating: schemas.Rating, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):

@@ -43,3 +43,12 @@ class TokenData(BaseModel):
 class Rating(BaseModel):
     movie_id: int
     rating: float  # 1-5 stars
+    
+# Add this new class
+class PaginatedMovieResponse(BaseModel):
+    items: List[Movie]
+    total: int
+    page: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
