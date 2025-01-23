@@ -28,24 +28,26 @@ export const MovieFilter: React.FC<MovieFilterProps> = ({
   return (
     <div className="bg-white shadow-sm p-4 mb-6 rounded-lg">
       <div className="flex flex-wrap items-center gap-4">
-        <FormControl size="small" className="min-w-[200px] flex-grow-0">
-          <InputLabel>Genre</InputLabel>
-          <Select
-            value=""
-            onChange={handleGenreChange}
-            label="Genre"
-          >
-            {genres.map((genre) => (
-              <MenuItem 
-                key={genre} 
-                value={genre}
-                disabled={selectedGenres.has(genre)}
-              >
-                {genre}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+                  <div className="flex flex-col w-[150px]">
+          <div className="text-sm font-medium mb-1">Genre</div>
+          <FormControl size="small">
+            <Select
+              value=""
+              onChange={handleGenreChange}
+              displayEmpty
+            >
+              {genres.map((genre) => (
+                <MenuItem 
+                  key={genre} 
+                  value={genre}
+                  disabled={selectedGenres.has(genre)}
+                >
+                  {genre}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </div>
 
         <div className="flex-1 flex flex-wrap gap-2">
           {Array.from(selectedGenres).map((genre) => (

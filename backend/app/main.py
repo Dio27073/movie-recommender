@@ -54,7 +54,7 @@ async def startup_event():
     db = SessionLocal()
     if db.query(models.Movie).count() == 0:
         # Fetch multiple pages of popular movies from TMDB
-        total_pages = 20  # This will give us about 400 movies
+        total_pages = 50  # This will give us about 400 movies
         
         for page in range(1, total_pages + 1):
             response = requests.get(
