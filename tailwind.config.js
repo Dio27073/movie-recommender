@@ -9,14 +9,14 @@ export default {
     extend: {
       colors: {
         dark: {
-          primary: '#1a1a1a',
-          secondary: '#2d2d2d',
+          primary: '#13151a',
+          secondary: '#0f172a',
           text: '#ffffff'
         },
         light: {
-          primary: '#ffffff',
-          secondary: '#f3f4f6',
-          text: '#000000'
+          primary: '#fcfcfc',
+          secondary: '#f5f5f7',
+          text: '#1f2937'
         }
       }
     },

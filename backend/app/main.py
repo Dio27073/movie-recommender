@@ -55,6 +55,7 @@ async def startup_event():
     if db.query(models.Movie).count() == 0:
         # Fetch multiple pages of popular movies from TMDB
         total_pages = 50  # This will give us about 400 movies
+        processed_movies = set()  # Keep track of movies we've already added
         
         for page in range(1, total_pages + 1):
             response = requests.get(
@@ -69,6 +70,10 @@ async def startup_event():
             
             for movie_data in movies_data:
                 try:
+                    # Skip if we've already processed this movie
+                    if movie_data["id"] in processed_movies:
+                        continue
+
                     # Get additional movie details
                     movie_details = requests.get(
                         f"{TMDB_BASE_URL}/movie/{movie_data['id']}",
@@ -77,6 +82,17 @@ async def startup_event():
                     
                     # Only add movies with complete data
                     if all(key in movie_data for key in ["title", "overview", "release_date", "vote_average", "poster_path"]):
+                        # Add validation for release_date
+                        if not movie_data["release_date"]:
+                            print(f"Skipping movie {movie_data['title']}: Missing release date")
+                            continue
+                            
+                        try:
+                            release_year = int(movie_data["release_date"][:4])
+                        except (ValueError, IndexError):
+                            print(f"Skipping movie {movie_data['title']}: Invalid release date format")
+                            continue
+
                         # Convert TMDB rating (0-10) to our scale (0-5)
                         converted_rating = (movie_data["vote_average"] / 2)
                         # Ensure the rating is within our constraints
@@ -86,11 +102,13 @@ async def startup_event():
                             title=movie_data["title"],
                             description=movie_data["overview"],
                             genres=",".join([genre["name"] for genre in movie_details["genres"]]),
-                            release_year=int(movie_data["release_date"][:4]),
+                            release_year=release_year,
                             average_rating=converted_rating,
                             imageUrl=f"{TMDB_IMAGE_BASE_URL}{movie_data['poster_path']}"
                         )
                         db.add(movie)
+                        # Mark this movie as processed
+                        processed_movies.add(movie_data["id"])
                 except Exception as e:
                     print(f"Error processing movie {movie_data.get('title', 'Unknown')}: {str(e)}")
                     continue
@@ -126,7 +144,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
 @app.get("/movies/", response_model=schemas.PaginatedMovieResponse)
 def get_movies(
     page: int = 1, 
-    per_page: int = 10, 
+    per_page: int = 12, 
     genres: str = None,
     min_year: int = None,
     max_year: int = None,
