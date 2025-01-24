@@ -1,13 +1,16 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 
 class MovieBase(BaseModel):
     title: str
     description: Optional[str] = None
-    genres: List[str]  # Changed from str to List[str]
+    genres: List[str]
     release_year: int
-    average_rating: float = 0.0
-    imageUrl: Optional[str] = None  # Added this line
+    average_rating: float = Field(default=0.0, ge=0, le=5)
+    imageUrl: Optional[str] = None
+    imdb_id: Optional[str] = None
+    imdb_rating: Optional[float] = Field(default=None, ge=0, le=10)
+    imdb_votes: Optional[int] = None
 
 
 class MovieCreate(MovieBase):

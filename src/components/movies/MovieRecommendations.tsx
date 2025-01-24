@@ -1,16 +1,17 @@
 // src/components/movies/MovieRecommendations.tsx
 import React, { useState, useMemo, useCallback } from 'react';
-import { Star, Loader, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Loader, ChevronLeft, ChevronRight } from 'lucide-react';
 import { 
   Movie, 
   FilterParams as GlobalFilterParams,
   FilterValue as GlobalFilterValue,
   SortOption 
-} from '../../features/movies/types';import { useMovies, useRateMovie, useDebounce } from '../../features/movies/hooks';
+} from '../../features/movies/types';
+import { useMovies, useDebounce } from '../../features/movies/hooks';
 import { MovieCard } from './MovieCard';
 import { MovieFilter } from './MovieFilter';
 
-
+// Pagination component remains the same
 interface PaginationProps {
   currentPage: number;
   totalPages: number;
@@ -96,18 +97,19 @@ const MovieRecommendations: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set());
   const [yearRange, setYearRange] = useState<[number, number]>([1888, 2024]);
-  const [minRating, setMinRating] = useState(0);
-  const [sortBy, setSortBy] = useState<SortOption>('release_date_desc');
+  const [ratingRange, setRatingRange] = useState<[number, number]>([0, 10]);  // Changed from minRating
+  const [sortBy, setSortBy] = useState<SortOption>('imdb_rating_desc'); // Changed default sort
   
   const debouncedYearRange = useDebounce(yearRange, 500);
-  const debouncedMinRating = useDebounce(minRating, 500);
+  const debouncedRatingRange = useDebounce(ratingRange, 500);  // Changed from minRating
+
   
   const filters = useMemo((): GlobalFilterParams => ({
     genres: selectedGenres,
     yearRange: debouncedYearRange,
-    minRating: debouncedMinRating,
+    ratingRange: debouncedRatingRange,
     sort: sortBy,
-  }), [selectedGenres, debouncedYearRange, debouncedMinRating, sortBy]);
+  }), [selectedGenres, debouncedYearRange, debouncedRatingRange, sortBy]);
   
   const { 
     movies, 
@@ -115,16 +117,6 @@ const MovieRecommendations: React.FC = () => {
     error: moviesError,
     pagination 
   } = useMovies(currentPage, filters);
-  
-  const { 
-    rateMovie, 
-    loading: ratingLoading, 
-    error: ratingError 
-  } = useRateMovie();
-
-  const handleRate = useCallback(async (movieId: number, rating: number): Promise<void> => {
-    const success = await rateMovie({ movie_id: movieId, rating });
-  }, [rateMovie]);
 
   const handleFilterChange = useCallback((filterType: keyof GlobalFilterParams, value: GlobalFilterValue) => {
     setCurrentPage(1);
@@ -147,8 +139,8 @@ const MovieRecommendations: React.FC = () => {
         setYearRange(value as [number, number]);
         break;
         
-      case 'minRating':
-        setMinRating(value as number);
+      case 'ratingRange':  // Changed from minRating
+        setRatingRange(value as [number, number]);
         break;
   
       case 'sort':
@@ -178,10 +170,10 @@ const MovieRecommendations: React.FC = () => {
     [movies, getGenresArray]
   );
 
-  if (moviesError || ratingError) {
+  if (moviesError) {
     return (
       <div className="text-red-600 p-4">
-        {moviesError || ratingError}
+        {moviesError}
       </div>
     );
   }
@@ -196,7 +188,7 @@ const MovieRecommendations: React.FC = () => {
         genres={allGenres}
         selectedGenres={selectedGenres}
         yearRange={yearRange}
-        minRating={minRating}
+        ratingRange={ratingRange}  // Changed from minRating
         sortBy={sortBy}
         onFilterChange={handleFilterChange}
         minYear={1888}
@@ -224,7 +216,6 @@ const MovieRecommendations: React.FC = () => {
                     ...movie,
                     genres: getGenresArray(movie.genres),
                   }}
-                  onRate={(rating) => handleRate(movie.id, rating)}
                 />
               ))}
             </div>

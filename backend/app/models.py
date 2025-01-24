@@ -34,15 +34,22 @@ class Movie(Base):
 
     id = Column(Integer, primary_key=True)
     title = Column(String(255), nullable=False, index=True)
-    description = Column(String(2000), nullable=True)  # Longer text for descriptions
-    genres = Column(String(255), nullable=True)  # Store as comma-separated values
+    description = Column(String(2000), nullable=True)
+    genres = Column(String(255), nullable=True)
     release_year = Column(Integer, nullable=False)
-    average_rating = Column(Float, default=0.0, nullable=False)
-    imageUrl = Column(String(500), nullable=True)  # URLs can be long
+    imageUrl = Column(String(500), nullable=True)
     
-    # Add constraints for valid values
+    # IMDB specific fields
+    imdb_id = Column(String(20), unique=True, nullable=True)  # IMDB's unique identifier
+    imdb_rating = Column(Float, nullable=True)  # IMDB's rating (0-10)
+    imdb_votes = Column(Integer, nullable=True)  # Number of votes on IMDB
+    
+    # Keep average_rating for compatibility, but now it will be derived from IMDB
+    average_rating = Column(Float, default=0.0, nullable=False)
+    
     __table_args__ = (
-        CheckConstraint('release_year >= 1888'),  # First movie ever made was in 1888
+        CheckConstraint('release_year >= 1888'),
+        CheckConstraint('imdb_rating >= 0 AND imdb_rating <= 10'),
         CheckConstraint('average_rating >= 0 AND average_rating <= 5'),
     )
     

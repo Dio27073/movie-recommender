@@ -13,10 +13,10 @@ import {
 } from 'lucide-react';
 
 const sortOptions: { value: SortOption; label: string }[] = [
+  { value: 'imdb_rating_desc', label: 'IMDB Rating (High to Low)' },
+  { value: 'imdb_rating_asc', label: 'IMDB Rating (Low to High)' },
   { value: 'release_date_desc', label: 'Release Date (Newest)' },
   { value: 'release_date_asc', label: 'Release Date (Oldest)' },
-  { value: 'rating_desc', label: 'Rating (High to Low)' },
-  { value: 'rating_asc', label: 'Rating (Low to High)' },
   { value: 'title_asc', label: 'Title (A-Z)' },
   { value: 'title_desc', label: 'Title (Z-A)' },
 ];
@@ -25,7 +25,7 @@ export const MovieFilter = ({
   genres, 
   selectedGenres, 
   yearRange,
-  minRating,
+  ratingRange,
   sortBy,
   onFilterChange,
   minYear,
@@ -139,17 +139,30 @@ export const MovieFilter = ({
             <div className="space-y-2">
               <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                 <Star className="w-4 h-4" />
-                <span>Min Rating: {minRating}</span>
+                <span>IMDB Rating Range: {ratingRange[0]} - {ratingRange[1]}</span>
               </label>
               <input
                 type="range"
                 className="w-full accent-blue-600 dark:accent-blue-400"
                 min={0}
-                max={5}
+                max={10}
                 step={0.5}
-                value={minRating}
-                onChange={(e) => onFilterChange('minRating', parseFloat(e.target.value))}
+                value={ratingRange[1]}
+                onChange={(e) => onFilterChange('ratingRange', [ratingRange[0], parseFloat(e.target.value)])}
               />
+              <input
+                type="range"
+                className="w-full accent-blue-600 dark:accent-blue-400"
+                min={0}
+                max={10}
+                step={0.5}
+                value={ratingRange[0]}
+                onChange={(e) => onFilterChange('ratingRange', [parseFloat(e.target.value), ratingRange[1]])}
+              />
+              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span>Min: {ratingRange[0]}</span>
+                <span>Max: {ratingRange[1]}</span>
+              </div>
             </div>
           </div>
 

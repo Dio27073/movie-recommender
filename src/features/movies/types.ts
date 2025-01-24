@@ -1,25 +1,34 @@
 // src/features/movies/types.ts
-export type SortOption = 'release_date_desc' | 'release_date_asc' | 'rating_desc' | 'rating_asc' | 'title_asc' | 'title_desc';
+export type SortOption = 
+  | 'release_date_desc' 
+  | 'release_date_asc' 
+  | 'imdb_rating_desc' 
+  | 'imdb_rating_asc' 
+  | 'title_asc' 
+  | 'title_desc';
 
 export interface Movie {
   id: number;
   title: string;
   description?: string;
-  genres: string | string[];  // can be either string or string array
+  genres: string | string[];
   release_year: number;
   average_rating: number;
   imageUrl?: string;
+  // New IMDB fields
+  imdb_id?: string;
+  imdb_rating?: number;
+  imdb_votes?: number;
 }
 
 export interface MovieCardProps {
-  movie: Omit<Movie, 'genres'> & { genres: string[] };  // ensure genres is always string[]
-  onRate: (rating: number) => Promise<void>;
+  movie: Omit<Movie, 'genres'> & { genres: string[] };
 }
 
 export interface FilterParams {
   genres?: Set<string>;
   yearRange?: [number, number];
-  minRating?: number;
+  ratingRange?: [number, number];  // Changed from minRating to ratingRange
   page?: number;
   per_page?: number;
   sort?: SortOption;
@@ -30,7 +39,7 @@ export interface MovieFilterProps {
   genres: string[];
   selectedGenres: Set<string>;
   yearRange: [number, number];
-  minRating: number;
+  ratingRange: [number, number];
   sortBy: SortOption;
   onFilterChange: (filterType: keyof FilterParams, value: FilterValue | SortOption) => void;
   minYear: number;
@@ -41,15 +50,17 @@ export interface MovieFilterProps {
 export type FilterValue = 
   | { genre: string; checked: boolean }  // for genre changes
   | [number, number]                     // for year range
-  | number 
   | SortOption; // for rating
 
 export interface MovieCreate {
   title: string;
   description?: string;
-  genres: string[];  // Changed to match Movie interface
+  genres: string[];
   release_year: number;
   average_rating?: number;
+  imdb_id?: string;
+  imdb_rating?: number;
+  imdb_votes?: number;
 }
 
 // User Types

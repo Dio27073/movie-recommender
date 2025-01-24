@@ -31,7 +31,16 @@ export const MovieCard: React.FC<MovieCardProps> = ({ movie }) => {
         <div className="flex items-center mb-3">
           <Star className="w-5 h-5 text-yellow-400 fill-current" />
           <span className="ml-2 text-gray-700 dark:text-gray-300 font-medium">
-            {movie.average_rating.toFixed(1)}
+            {movie.imdb_rating ? (
+              <span>
+                {movie.imdb_rating.toFixed(1)} 
+                <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
+                  IMDB
+                </span>
+              </span>
+            ) : (
+              'N/A'
+            )}
           </span>
         </div>
 

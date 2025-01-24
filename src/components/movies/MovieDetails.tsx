@@ -5,7 +5,6 @@ import { Movie } from '../../features/movies/types';
 import apiService from '../../services/api';
 
 export const MovieDetails: React.FC = () => {
-  // In Electron, we'll use location state to pass movie data
   const location = useLocation();
   const navigate = useNavigate();
   const movie = location.state?.movie as Movie;
@@ -14,12 +13,10 @@ export const MovieDetails: React.FC = () => {
   const [movieData, setMovieData] = useState<Movie | null>(movie || null);
 
   useEffect(() => {
-    // Only fetch if we don't have the movie data from navigation state
     if (!movie) {
       const fetchMovie = async () => {
         try {
           setLoading(true);
-          // Get movie ID from the location pathname
           const id = location.pathname.split('/').pop();
           const response = await apiService.getMovie(id!);
           setMovieData(response);
@@ -88,9 +85,21 @@ export const MovieDetails: React.FC = () => {
               </h1>
               <div className="flex items-center">
                 <Star className="w-6 h-6 text-yellow-400 fill-current" />
-                <span className="ml-2 text-lg font-semibold dark:text-gray-200">
-                  {movieData.average_rating.toFixed(1)}
-                </span>
+                <div className="ml-2">
+                  <div className="text-lg font-semibold dark:text-gray-200">
+                    {movieData.imdb_rating 
+                      ? `${movieData.imdb_rating.toFixed(1)}/10` 
+                      : 'N/A'}
+                    <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-1">
+                      IMDB
+                    </span>
+                  </div>
+                  {movieData.imdb_votes && (
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      {new Intl.NumberFormat().format(movieData.imdb_votes)} votes
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             
@@ -117,6 +126,19 @@ export const MovieDetails: React.FC = () => {
                 ))}
               </div>
             </div>
+            
+            {movieData.imdb_id && (
+              <div className="mt-6">
+                <a
+                  href={`https://www.imdb.com/title/${movieData.imdb_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-lg transition-colors"
+                >
+                  View on IMDB
+                </a>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -124,4 +146,4 @@ export const MovieDetails: React.FC = () => {
   );
 };
 
-export default MovieDetails;
+export default MovieDetails; // Add this line

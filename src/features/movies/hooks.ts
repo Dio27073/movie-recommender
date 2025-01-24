@@ -26,8 +26,6 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
     hasPrev: false
   });
 
-  // Memoize the URL parameters
-  // In useMovies hook, update the params useMemo
   const params = useMemo(() => {
     const urlParams = new URLSearchParams({
       page: page.toString(),
@@ -43,8 +41,10 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
       urlParams.append('max_year', filters.yearRange[1].toString());
     }
     
-    if (filters.minRating !== undefined) {
-      urlParams.append('min_rating', filters.minRating.toString());
+    // Update rating params to use ratingRange
+    if (filters.ratingRange) {
+      urlParams.append('min_rating', filters.ratingRange[0].toString());
+      urlParams.append('max_rating', filters.ratingRange[1].toString());
     }
 
     if (filters.sort) {
@@ -52,7 +52,7 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
     }
     
     return urlParams;
-  }, [page, filters.genres, filters.yearRange, filters.minRating, filters.sort]);
+  }, [page, filters.genres, filters.yearRange, filters.ratingRange, filters.sort]);
 
   // Memoize the fetch function
   const fetchMovies = useCallback(async () => {
