@@ -11,6 +11,9 @@ class MovieBase(BaseModel):
     imdb_id: Optional[str] = None
     imdb_rating: Optional[float] = Field(default=None, ge=0, le=10)
     imdb_votes: Optional[int] = None
+    trailer_url: Optional[str] = None
+
+
 
 
 class MovieCreate(MovieBase):

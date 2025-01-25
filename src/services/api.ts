@@ -110,6 +110,11 @@ import {
         body: JSON.stringify(rating),
       });
     }
+
+    async getMovieTrailer(id: string | number): Promise<string> {
+      const response = await this.request<{ trailer_url: string }>(`/movies/${id}/trailer`);
+      return response.trailer_url;
+    }
   
     // Test connection method
     async testConnection(): Promise<boolean> {

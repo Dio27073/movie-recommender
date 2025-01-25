@@ -19,6 +19,7 @@ export interface Movie {
   imdb_id?: string;
   imdb_rating?: number;
   imdb_votes?: number;
+  trailer_url?: string;
 }
 
 export interface MovieCardProps {

@@ -43,6 +43,8 @@ class Movie(Base):
     imdb_id = Column(String(20), unique=True, nullable=True)  # IMDB's unique identifier
     imdb_rating = Column(Float, nullable=True)  # IMDB's rating (0-10)
     imdb_votes = Column(Integer, nullable=True)  # Number of votes on IMDB
+    trailer_url = Column(String(500), nullable=True)  # Store trailer URL from TMDB
+
     
     # Keep average_rating for compatibility, but now it will be derived from IMDB
     average_rating = Column(Float, default=0.0, nullable=False)

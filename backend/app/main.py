@@ -3,7 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional  # Add Optional here
 import jwt
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
@@ -79,6 +79,33 @@ async def fetch_imdb_data(title: str, year: int) -> dict:
     except Exception as e:
         print(f"Error fetching IMDB data for {title} ({year}): {str(e)}")
         return None
+    
+async def fetch_movie_trailer(tmdb_id: int) -> Optional[str]:
+    try:
+        response = requests.get(
+            f"{TMDB_BASE_URL}/movie/{tmdb_id}/videos",
+            params={
+                "api_key": TMDB_API_KEY,
+                "language": "en-US"
+            }
+        )
+        if response.status_code == 200:
+            videos = response.json().get("results", [])
+            # Look for official trailers
+            trailer = next(
+                (
+                    video for video in videos 
+                    if video["type"].lower() == "trailer" 
+                    and video["site"].lower() == "youtube"
+                    and video["official"]
+                ),
+                None
+            )
+            if trailer:
+                return f"https://www.youtube.com/watch?v={trailer['key']}"
+    except Exception as e:
+        print(f"Error fetching trailer: {str(e)}")
+    return None
 
 @app.on_event("startup")
 async def startup_event():
@@ -131,6 +158,8 @@ async def startup_event():
                         # Ensure the rating is within our constraints
                         converted_rating = min(max(converted_rating, 0), 5)
                         
+                        trailer_url = await fetch_movie_trailer(movie_data["id"])
+                    
                         movie = models.Movie(
                             title=movie_data["title"],
                             description=movie_data["overview"],
@@ -140,7 +169,8 @@ async def startup_event():
                             imageUrl=f"{TMDB_IMAGE_BASE_URL}{movie_data['poster_path']}",
                             imdb_id=imdb_data["imdb_id"] if imdb_data else None,
                             imdb_rating=imdb_data["imdb_rating"] if imdb_data else None,
-                            imdb_votes=imdb_data["imdb_votes"] if imdb_data else None
+                            imdb_votes=imdb_data["imdb_votes"] if imdb_data else None,
+                            trailer_url=trailer_url
                         )
                         db.add(movie)
                         processed_movies.add(movie_data["id"])
@@ -162,7 +192,7 @@ def get_movies(
     max_year: int = None,
     min_rating: float = None,
     max_rating: float = None, 
-    sort: str = "imdb_rating_desc",  # Changed default sort to IMDB rating
+    sort: str = "imdb_rating_desc",
     db: Session = Depends(get_db)
     ):
     
@@ -185,7 +215,6 @@ def get_movies(
     if max_rating is not None:
         query = query.filter(models.Movie.imdb_rating <= max_rating)
     
-    # Updated sorting options to include IMDB ratings
     if sort:
         if sort == "imdb_rating_desc":
             query = query.order_by(desc(models.Movie.imdb_rating))
@@ -216,7 +245,8 @@ def get_movies(
             "genres": db_movie.genres.split(",") if db_movie.genres else [],
             "imdb_id": db_movie.imdb_id,
             "imdb_rating": db_movie.imdb_rating,
-            "imdb_votes": db_movie.imdb_votes
+            "imdb_votes": db_movie.imdb_votes,
+            "trailer_url": db_movie.trailer_url
         }
         movie_list.append(movie_dict)
     
@@ -248,6 +278,25 @@ async def create_movie(movie: schemas.MovieCreate, db: Session = Depends(get_db)
         if imdb_data["imdb_rating"]:
             movie_data["average_rating"] = imdb_data["imdb_rating"] / 2  # Convert 10-point to 5-point scale
     
+    # Fetch trailer URL
+    try:
+        tmdb_response = requests.get(
+            f"{TMDB_BASE_URL}/search/movie",
+            params={
+                "api_key": TMDB_API_KEY,
+                "query": movie.title,
+                "year": movie.release_year
+            }
+        )
+        if tmdb_response.status_code == 200:
+            results = tmdb_response.json().get("results", [])
+            if results:
+                tmdb_id = results[0]["id"]
+                trailer_url = await fetch_movie_trailer(tmdb_id)
+                movie_data["trailer_url"] = trailer_url
+    except Exception as e:
+        print(f"Error fetching trailer for {movie.title}: {str(e)}")
+    
     db_movie = models.Movie(**movie_data)
     db.add(db_movie)
     db.commit()
@@ -264,5 +313,6 @@ async def create_movie(movie: schemas.MovieCreate, db: Session = Depends(get_db)
         "genres": db_movie.genres.split(",") if db_movie.genres else [],
         "imdb_id": db_movie.imdb_id,
         "imdb_rating": db_movie.imdb_rating,
-        "imdb_votes": db_movie.imdb_votes
+        "imdb_votes": db_movie.imdb_votes,
+        "trailer_url": db_movie.trailer_url
     }

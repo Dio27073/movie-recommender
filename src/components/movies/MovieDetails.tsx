@@ -1,8 +1,55 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Star, ArrowLeft } from 'lucide-react';
+import { Star, ArrowLeft, Play, Pause } from 'lucide-react';
 import { Movie } from '../../features/movies/types';
 import apiService from '../../services/api';
+
+
+interface VideoPlayerProps {
+  url: string;
+  title: string;
+}
+
+const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, title }) => {
+  const [error, setError] = useState<string | null>(null);
+
+  const getYouTubeEmbedUrl = (url: string): string | null => {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return match && match[2].length === 11 ? match[2] : null;
+  };
+
+  const videoId = getYouTubeEmbedUrl(url);
+
+  if (!videoId) {
+    return (
+      <div className="w-full bg-gray-900 rounded-lg p-4">
+        <p className="text-red-400 text-center">Invalid video URL</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full bg-gray-900 rounded-lg overflow-hidden">
+      <div className="relative w-full" style={{ paddingBottom: '56.25%' }}> {/* 16:9 aspect ratio */}
+        <iframe
+          src={`https://www.youtube.com/embed/${videoId}`}
+          title={`${title} trailer`}
+          className="absolute top-0 left-0 w-full h-full"
+          style={{ border: 'none' }}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          onError={() => setError('Failed to load video')}
+        />
+        {error && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-90">
+            <p className="text-red-400 text-center p-4">{error}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export const MovieDetails: React.FC = () => {
   const location = useLocation();
@@ -55,7 +102,7 @@ export const MovieDetails: React.FC = () => {
       </div>
     );
   }
-
+  
   if (!movieData) return null;
 
   return (
@@ -137,6 +184,17 @@ export const MovieDetails: React.FC = () => {
                 >
                   View on IMDB
                 </a>
+              </div>
+            )}
+
+            {movieData?.trailer_url && (
+              <div className="mt-8">
+                <div className="max-w-4xl mx-auto px-4">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">
+                    Watch Trailer
+                  </h2>
+                  <VideoPlayer url={movieData.trailer_url} title={movieData.title} />
+                </div>
               </div>
             )}
           </div>
