@@ -10,6 +10,7 @@ import {
 import { useMovies, useDebounce } from '../../features/movies/hooks';
 import { MovieCard } from './MovieCard';
 import { MovieFilter } from './MovieFilter';
+import { MovieDetailsModal } from './MovieDetailsModal';
 
 // Pagination component remains the same
 interface PaginationProps {
@@ -99,6 +100,9 @@ const MovieRecommendations: React.FC = () => {
   const [yearRange, setYearRange] = useState<[number, number]>([1888, 2024]);
   const [ratingRange, setRatingRange] = useState<[number, number]>([0, 10]);  // Changed from minRating
   const [sortBy, setSortBy] = useState<SortOption>('imdb_rating_desc'); // Changed default sort
+
+  const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   
   const debouncedYearRange = useDebounce(yearRange, 500);
   const debouncedRatingRange = useDebounce(ratingRange, 500);  // Changed from minRating
@@ -117,6 +121,11 @@ const MovieRecommendations: React.FC = () => {
     error: moviesError,
     pagination 
   } = useMovies(currentPage, filters);
+
+  const handleMovieClick = useCallback((movie: Movie) => {
+    setSelectedMovie(movie);
+    setIsModalOpen(true);
+  }, []);
 
   const handleFilterChange = useCallback((filterType: keyof GlobalFilterParams, value: GlobalFilterValue) => {
     setCurrentPage(1);
@@ -188,7 +197,7 @@ const MovieRecommendations: React.FC = () => {
         genres={allGenres}
         selectedGenres={selectedGenres}
         yearRange={yearRange}
-        ratingRange={ratingRange}  // Changed from minRating
+        ratingRange={ratingRange}
         sortBy={sortBy}
         onFilterChange={handleFilterChange}
         minYear={1888}
@@ -216,6 +225,7 @@ const MovieRecommendations: React.FC = () => {
                     ...movie,
                     genres: getGenresArray(movie.genres),
                   }}
+                  onMovieClick={handleMovieClick}
                 />
               ))}
             </div>
@@ -230,6 +240,12 @@ const MovieRecommendations: React.FC = () => {
           </div>
         )}
       </main>
+
+      <MovieDetailsModal
+        movie={selectedMovie}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
     </div>
   );  
 };

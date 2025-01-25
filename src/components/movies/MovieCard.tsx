@@ -1,13 +1,17 @@
 import React from 'react';
 import { Star } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { MovieCardProps } from '../../features/movies/types';
+import { MovieCardProps, Movie } from '../../features/movies/types';
 
-export const MovieCard: React.FC<MovieCardProps> = ({ movie }) => {
+interface ExtendedMovieCardProps extends MovieCardProps {
+  onMovieClick: (movie: Movie) => void;
+}
+
+export const MovieCard: React.FC<ExtendedMovieCardProps> = ({ movie, onMovieClick }) => {
   const navigate = useNavigate();
 
   const handleClick = () => {
-    navigate(`/movie/${movie.id}`, { state: { movie } });
+    onMovieClick(movie);
   };
 
   return (
