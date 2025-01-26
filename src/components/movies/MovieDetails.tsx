@@ -97,7 +97,7 @@ export const MovieDetails: React.FC = () => {
           className="mt-4 inline-flex items-center text-blue-600 hover:text-blue-800"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Movies
+          Back
         </button>
       </div>
     );
