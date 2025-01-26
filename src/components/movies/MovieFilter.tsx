@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { MovieFilterProps, SortOption } from '../../features/movies/types';
-import { useTheme } from '../../features/theme/themeContext';
+
 import { 
   SlidersHorizontal, 
   Calendar, 
@@ -32,8 +32,6 @@ export const MovieFilter = ({
   maxYear
 }: MovieFilterProps) => {
   const [isExpanded, setIsExpanded] = useState(true);
-  const { theme } = useTheme();
-
   return (
     <div className="bg-white dark:bg-dark-secondary shadow-sm dark:shadow-gray-800 rounded-lg p-6 space-y-6 mb-8 transition-colors">
       {/* Header with total filters count */}

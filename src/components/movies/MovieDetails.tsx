@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Star, ArrowLeft, Play, Pause } from 'lucide-react';
+import { Star, ArrowLeft } from 'lucide-react';
 import { Movie } from '../../features/movies/types';
 import apiService from '../../services/api';
 

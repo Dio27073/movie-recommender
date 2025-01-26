@@ -1,10 +1,6 @@
 import {
     Movie,
     MovieCreate,
-    User,
-    UserCreate,
-    Token,
-    LoginCredentials,
     Rating,
     RatingResponse,
     ApiError

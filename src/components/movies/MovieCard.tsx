@@ -1,6 +1,5 @@
 import React from 'react';
 import { Star } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { MovieCardProps, Movie } from '../../features/movies/types';
 
 interface ExtendedMovieCardProps extends MovieCardProps {
@@ -8,7 +7,6 @@ interface ExtendedMovieCardProps extends MovieCardProps {
 }
 
 export const MovieCard: React.FC<ExtendedMovieCardProps> = ({ movie, onMovieClick }) => {
-  const navigate = useNavigate();
 
   const handleClick = () => {
     onMovieClick(movie);
