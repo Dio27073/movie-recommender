@@ -5,12 +5,14 @@ import {
   Movie, 
   FilterParams as GlobalFilterParams,
   FilterValue as GlobalFilterValue,
-  SortOption 
+  SortOption,
+  ViewType
 } from '../../features/movies/types';
 import { useMovies, useDebounce } from '../../features/movies/hooks';
 import { MovieCard } from './MovieCard';
 import { MovieFilter } from './MovieFilter';
 import { MovieDetailsModal } from './MovieDetailsModal';
+import { ViewSwitcher } from '../ui/ViewSwitcher';
 
 // Pagination component remains the same
 interface PaginationProps {
@@ -100,6 +102,7 @@ const MovieRecommendations: React.FC = () => {
   const [yearRange, setYearRange] = useState<[number, number]>([1888, 2024]);
   const [ratingRange, setRatingRange] = useState<[number, number]>([0, 10]);  // Changed from minRating
   const [sortBy, setSortBy] = useState<SortOption>('imdb_rating_desc'); // Changed default sort
+  const [viewType, setViewType] = useState<ViewType>('grid');
 
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -113,7 +116,8 @@ const MovieRecommendations: React.FC = () => {
     yearRange: debouncedYearRange,
     ratingRange: debouncedRatingRange,
     sort: sortBy,
-  }), [selectedGenres, debouncedYearRange, debouncedRatingRange, sortBy]);
+    view: viewType,
+  }), [selectedGenres, debouncedYearRange, debouncedRatingRange, sortBy, viewType]);
   
   const { 
     movies, 
@@ -125,6 +129,10 @@ const MovieRecommendations: React.FC = () => {
   const handleMovieClick = useCallback((movie: Movie) => {
     setSelectedMovie(movie);
     setIsModalOpen(true);
+  }, []);
+
+  const handleViewChange = useCallback((newView: ViewType) => {
+    setViewType(newView);
   }, []);
 
   const handleFilterChange = useCallback((filterType: keyof GlobalFilterParams, value: GlobalFilterValue) => {
@@ -179,6 +187,19 @@ const MovieRecommendations: React.FC = () => {
     [movies, getGenresArray]
   );
 
+  const getViewClassName = () => {
+    switch (viewType) {
+      case 'grid':
+        return 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6';
+      case 'list':
+        return 'flex flex-col gap-4';
+      case 'compact':
+        return 'flex flex-col gap-2';
+      default:
+        return 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6';
+    }
+  };
+
   if (moviesError) {
     return (
       <div className="text-red-600 p-4">
@@ -192,6 +213,10 @@ const MovieRecommendations: React.FC = () => {
       <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">
         Movie Recommender
       </h1>
+
+      <div className="flex justify-between items-center mb-6">
+        <ViewSwitcher currentView={viewType} onViewChange={handleViewChange} />
+      </div>
       
       <MovieFilter
         genres={allGenres}
@@ -199,6 +224,7 @@ const MovieRecommendations: React.FC = () => {
         yearRange={yearRange}
         ratingRange={ratingRange}
         sortBy={sortBy}
+        viewType={viewType}
         onFilterChange={handleFilterChange}
         minYear={1888}
         maxYear={2024}
@@ -217,7 +243,7 @@ const MovieRecommendations: React.FC = () => {
           </div>
         ) : (
           <div className="flex flex-col">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className={getViewClassName()}>
               {movies.map((movie) => (
                 <MovieCard
                   key={movie.id}
@@ -225,6 +251,7 @@ const MovieRecommendations: React.FC = () => {
                     ...movie,
                     genres: getGenresArray(movie.genres),
                   }}
+                  viewType={viewType}
                   onMovieClick={handleMovieClick}
                 />
               ))}

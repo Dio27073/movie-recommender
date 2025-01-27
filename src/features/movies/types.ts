@@ -1,4 +1,6 @@
 // src/features/movies/types.ts
+export type ViewType = 'grid' | 'list' | 'compact';
+
 export type SortOption = 
   | 'release_date_desc' 
   | 'release_date_asc' 
@@ -24,6 +26,7 @@ export interface Movie {
 
 export interface MovieCardProps {
   movie: Omit<Movie, 'genres'> & { genres: string[] };
+  viewType: ViewType;  // Add viewType to MovieCardProps
 }
 
 export interface FilterParams {
@@ -33,6 +36,7 @@ export interface FilterParams {
   page?: number;
   per_page?: number;
   sort?: SortOption;
+  view?: ViewType;  // Add view type to FilterParams
 }
 
 // Update MovieFilterProps to include sort props
@@ -42,6 +46,7 @@ export interface MovieFilterProps {
   yearRange: [number, number];
   ratingRange: [number, number];
   sortBy: SortOption;
+  viewType: ViewType;  // Add viewType to MovieFilterProps
   onFilterChange: (filterType: keyof FilterParams, value: FilterValue | SortOption) => void;
   minYear: number;
   maxYear: number;
@@ -50,7 +55,8 @@ export interface MovieFilterProps {
 // Add this type to handle different filter value types
 export type FilterValue = 
   | { genre: string; checked: boolean }  // for genre changes
-  | [number, number]                     // for year range
+  | [number, number]     
+  | ViewType              
   | SortOption; // for rating
 
 export interface MovieCreate {
