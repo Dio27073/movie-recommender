@@ -109,7 +109,7 @@ export const MovieFilter = ({
               </select>
             </div>
 
-            {/* Year Range */}
+            {/* Year Range*/}
             <div className="space-y-2">
               <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                 <Calendar className="w-4 h-4" />
