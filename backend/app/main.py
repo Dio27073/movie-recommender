@@ -107,11 +107,27 @@ async def fetch_movie_trailer(tmdb_id: int) -> Optional[str]:
         print(f"Error fetching trailer: {str(e)}")
     return None
 
+"""Fetch cast and crew data for a movie using TMDB API."""
+async def fetch_movie_cast_crew(tmdb_id: int) -> dict:
+    try:
+        response = requests.get(
+            f"{TMDB_BASE_URL}/movie/{tmdb_id}/credits",
+            params={"api_key": TMDB_API_KEY, "language": "en-US"}
+        )
+        if response.status_code == 200:
+            credits = response.json()
+            cast = [actor["name"] for actor in credits.get("cast", [])[:5]]  # Top 5 cast members
+            crew = [member["name"] for member in credits.get("crew", []) if member["job"] == "Director"]  # Directors
+            return {"cast": cast, "crew": crew}
+    except Exception as e:
+        print(f"Error fetching cast/crew for movie {tmdb_id}: {str(e)}")
+    return {"cast": [], "crew": []}
+
 @app.on_event("startup")
 async def startup_event():
     db = SessionLocal()
     if db.query(models.Movie).count() == 0:
-        total_pages = 50
+        total_pages = 80
         processed_movies = set()
         
         for page in range(1, total_pages + 1):
@@ -147,6 +163,8 @@ async def startup_event():
                         # Fetch IMDB data
                         imdb_data = await fetch_imdb_data(movie_data["title"], release_year)
                         
+                        cast_crew_data = await fetch_movie_cast_crew(movie_data["id"])
+
                         # If we have IMDB data, use it for the rating
                         if imdb_data and imdb_data["imdb_rating"]:
                             # Convert IMDB rating (0-10) to our scale (0-5)
@@ -170,7 +188,9 @@ async def startup_event():
                             imdb_id=imdb_data["imdb_id"] if imdb_data else None,
                             imdb_rating=imdb_data["imdb_rating"] if imdb_data else None,
                             imdb_votes=imdb_data["imdb_votes"] if imdb_data else None,
-                            trailer_url=trailer_url
+                            trailer_url=trailer_url,
+                            cast=",".join(cast_crew_data["cast"]),
+                            crew=",".join(cast_crew_data["crew"])
                         )
                         db.add(movie)
                         processed_movies.add(movie_data["id"])
@@ -246,7 +266,66 @@ def get_movies(
             "imdb_id": db_movie.imdb_id,
             "imdb_rating": db_movie.imdb_rating,
             "imdb_votes": db_movie.imdb_votes,
-            "trailer_url": db_movie.trailer_url
+            "trailer_url": db_movie.trailer_url,
+            "cast": db_movie.cast.split(",") if db_movie.cast else [],
+            "crew": db_movie.crew.split(",") if db_movie.crew else []
+        }
+        movie_list.append(movie_dict)
+    
+    return {
+        "items": movie_list,
+        "total": total_movies,
+        "page": page,
+        "total_pages": total_pages,
+        "has_next": page < total_pages,
+        "has_prev": page > 1
+    }
+
+@app.get("/movies/search/", response_model=schemas.PaginatedMovieResponse)
+def search_movies_by_cast_crew(
+    query: str,
+    page: int = 1,
+    per_page: int = 12,
+    db: Session = Depends(get_db),
+    search_type: str = "cast_crew" # Add search type parameter
+):
+    """Search movies by cast or crew members."""
+    offset = (page - 1) * per_page
+    query = query.lower()
+    
+    # Search for movies where cast or crew contains the query
+    db_query = db.query(models.Movie)
+    if search_type == "cast_crew": # Filter by cast or crew
+        # Search for movies where cast OR crew contains the query
+        db_query = db_query.filter(
+            or_(
+                models.Movie.cast.ilike(f"%{query}%"), # Contains the name
+                models.Movie.crew.ilike(f"%{query}%")
+            )
+        )
+    elif search_type == "title": # Filter by title
+        db_query = db_query.filter(models.Movie.title.ilike(f"%{query}%"))
+    
+    total_movies = db_query.count()
+    total_pages = (total_movies + per_page - 1) // per_page
+    movies = db_query.offset(offset).limit(per_page).all()
+    
+    movie_list = []
+    for db_movie in movies:
+        movie_dict = {
+            "id": db_movie.id,
+            "title": db_movie.title,
+            "description": db_movie.description,
+            "release_year": db_movie.release_year,
+            "average_rating": db_movie.average_rating,
+            "imageUrl": db_movie.imageUrl,
+            "genres": db_movie.genres.split(",") if db_movie.genres else [],
+            "imdb_id": db_movie.imdb_id,
+            "imdb_rating": db_movie.imdb_rating,
+            "imdb_votes": db_movie.imdb_votes,
+            "trailer_url": db_movie.trailer_url,
+            "cast": db_movie.cast.split(",") if db_movie.cast else [],  # Return cast as a list
+            "crew": db_movie.crew.split(",") if db_movie.crew else []  # Return crew as a list
         }
         movie_list.append(movie_dict)
     

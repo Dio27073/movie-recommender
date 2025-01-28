@@ -9,12 +9,16 @@ interface ModalProps {
   className?: string;
 }
 
-export const Modal: React.FC<ModalProps> = ({ 
-  isOpen, 
-  onClose, 
-  children, 
-  className = '' 
-}) => {
+/**
+ * A reusable modal component that renders its children in a portal
+ * Handles keyboard events (Escape to close) and prevents body scroll when open
+ */
+export const Modal = ({
+  isOpen,
+  onClose,
+  children,
+  className = '',
+}: ModalProps): React.ReactPortal | null => {
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -37,24 +41,24 @@ export const Modal: React.FC<ModalProps> = ({
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
       <div 
-        className="absolute inset-0 bg-black bg-opacity-50 transition-opacity" 
+        className="absolute inset-0 bg-black/50 transition-opacity" 
         onClick={onClose}
+        aria-hidden="true"
       />
       
-      {/* Modal Content */}
       <div 
-        className={`relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-h-[90vh] overflow-y-auto
-          ${className}`}
-        onClick={e => e.stopPropagation()}
+        className={`relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-h-[90vh] overflow-y-auto ${className}`}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
       >
         <button
           onClick={onClose}
           className="absolute right-4 top-4 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           aria-label="Close modal"
         >
-          <X className="w-6 h-6" />
+          <X className="h-6 w-6" />
         </button>
         {children}
       </div>

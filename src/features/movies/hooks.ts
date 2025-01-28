@@ -2,6 +2,14 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import apiService from '../../services/api';
 import { Movie, Rating, FilterParams } from './types';
 
+interface PaginationData {
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+// Generic debounce hook for any value
 export function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
 
@@ -15,11 +23,12 @@ export function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
+// Main movies fetching hook
 export const useMovies = (page: number = 1, filters: FilterParams) => {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState({
+  const [pagination, setPagination] = useState<PaginationData>({
     total: 0,
     totalPages: 0,
     hasNext: false,
@@ -33,7 +42,15 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
     });
 
     if (filters.genres?.size) {
-      urlParams.append('genres', Array.from(filters.genres).join(','));
+      Array.from(filters.genres).forEach(genre => {
+        urlParams.append('genres', genre);
+      });
+    }
+    
+    if (filters.castCrew?.size) {
+      Array.from(filters.castCrew).forEach(person => {
+        urlParams.append('cast_crew', person);
+      });
     }
     
     if (filters.yearRange) {
@@ -41,7 +58,6 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
       urlParams.append('max_year', filters.yearRange[1].toString());
     }
     
-    // Update rating params to use ratingRange
     if (filters.ratingRange) {
       urlParams.append('min_rating', filters.ratingRange[0].toString());
       urlParams.append('max_rating', filters.ratingRange[1].toString());
@@ -50,15 +66,38 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
     if (filters.sort) {
       urlParams.append('sort', filters.sort);
     }
-    
-    return urlParams;
-  }, [page, filters.genres, filters.yearRange, filters.ratingRange, filters.sort]);
 
-  // Memoize the fetch function
+    if (filters.searchQuery?.trim()) {
+      urlParams.append('search', filters.searchQuery);
+      if (filters.searchType) {
+        urlParams.append('search_type', filters.searchType);
+      }
+    }
+
+    return urlParams;
+  }, [
+    page, 
+    filters.genres, 
+    filters.yearRange, 
+    filters.ratingRange, 
+    filters.sort, 
+    filters.castCrew,
+    filters.searchQuery,
+    filters.searchType
+  ]);
+
   const fetchMovies = useCallback(async () => {
     setLoading(true);
+    setError(null);
+    
     try {
-      const response = await fetch(`http://localhost:8000/movies/?${params}`);
+      const url = `http://localhost:8000/movies/?${params}`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch movies: ${response.statusText}`);
+      }
+      
       const data = await response.json();
       
       setMovies(data.items);
@@ -69,7 +108,9 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
         hasPrev: data.has_prev
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch movies');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch movies';
+      setError(errorMessage);
+      setMovies([]);
     } finally {
       setLoading(false);
     }
@@ -82,17 +123,72 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
   return { movies, loading, error, pagination };
 };
 
+// Movie search hook
+export const useMovieSearch = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [searchResults, setSearchResults] = useState<Movie[]>([]);
+  const [searchPagination, setSearchPagination] = useState<PaginationData>({
+    total: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrev: false
+  });
+
+  const searchMovies = useCallback(async (query: string, page: number = 1) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `http://localhost:8000/movies/search/?query=${encodeURIComponent(query)}&page=${page}`
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Failed to search movies: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      setSearchResults(data.items);
+      setSearchPagination({
+        total: data.total,
+        totalPages: data.total_pages,
+        hasNext: data.has_next,
+        hasPrev: data.has_prev
+      });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to search movies';
+      setError(errorMessage);
+      setSearchResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { searchMovies, searchResults, loading, error, searchPagination };
+};
+
+// Movie rating hook
 export const useRateMovie = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const rateMovie = useCallback(async (rating: Rating) => {
+    setLoading(true);
+    setError(null);
+
     try {
-      setLoading(true);
       await apiService.rateMovie(rating);
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to rate movie');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to rate movie';
+      setError(errorMessage);
       return false;
     } finally {
       setLoading(false);

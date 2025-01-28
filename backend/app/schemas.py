@@ -12,8 +12,8 @@ class MovieBase(BaseModel):
     imdb_rating: Optional[float] = Field(default=None, ge=0, le=10)
     imdb_votes: Optional[int] = None
     trailer_url: Optional[str] = None
-
-
+    cast: Optional[List[str]] = None  # Add cast field
+    crew: Optional[List[str]] = None
 
 
 class MovieCreate(MovieBase):

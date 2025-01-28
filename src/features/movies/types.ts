@@ -1,4 +1,4 @@
-// src/features/movies/types.ts
+// View and Sort Types
 export type ViewType = 'grid' | 'list' | 'compact';
 
 export type SortOption = 
@@ -9,6 +9,9 @@ export type SortOption =
   | 'title_asc' 
   | 'title_desc';
 
+export type SearchType = 'title' | 'cast_crew';
+
+// Movie Types
 export interface Movie {
   id: number;
   title: string;
@@ -17,47 +20,13 @@ export interface Movie {
   release_year: number;
   average_rating: number;
   imageUrl?: string;
-  // New IMDB fields
   imdb_id?: string;
   imdb_rating?: number;
   imdb_votes?: number;
   trailer_url?: string;
+  cast?: string | string[];
+  crew?: string | string[];
 }
-
-export interface MovieCardProps {
-  movie: Omit<Movie, 'genres'> & { genres: string[] };
-  viewType: ViewType;  // Add viewType to MovieCardProps
-}
-
-export interface FilterParams {
-  genres?: Set<string>;
-  yearRange?: [number, number];
-  ratingRange?: [number, number];  // Changed from minRating to ratingRange
-  page?: number;
-  per_page?: number;
-  sort?: SortOption;
-  view?: ViewType;  // Add view type to FilterParams
-}
-
-// Update MovieFilterProps to include sort props
-export interface MovieFilterProps {
-  genres: string[];
-  selectedGenres: Set<string>;
-  yearRange: [number, number];
-  ratingRange: [number, number];
-  sortBy: SortOption;
-  viewType: ViewType;  // Add viewType to MovieFilterProps
-  onFilterChange: (filterType: keyof FilterParams, value: FilterValue | SortOption) => void;
-  minYear: number;
-  maxYear: number;
-}
-
-// Add this type to handle different filter value types
-export type FilterValue = 
-  | { genre: string; checked: boolean }  // for genre changes
-  | [number, number]     
-  | ViewType              
-  | SortOption; // for rating
 
 export interface MovieCreate {
   title: string;
@@ -70,7 +39,52 @@ export interface MovieCreate {
   imdb_votes?: number;
 }
 
-// User Types
+// Component Props Types
+export interface MovieCardProps {
+  movie: Omit<Movie, 'genres'> & { genres: string[] };
+  viewType: ViewType;
+}
+
+export interface MovieFilterProps {
+  genres: string[];
+  selectedGenres: Set<string>;
+  yearRange: [number, number];
+  ratingRange: [number, number];
+  sortBy: SortOption;
+  viewType: ViewType;
+  onFilterChange: (filterType: keyof FilterParams, value: FilterValue) => void;
+  minYear: number;
+  maxYear: number;
+  searchQuery: string;
+  searchType: SearchType;
+  onSearchChange: (query: string, type: SearchType) => void;
+  selectedCastCrew: Set<string>;
+  onCastCrewSelect: (name: string) => void;
+  onMovieSelect: (movie: Movie) => void;
+}
+
+// Filter Types
+export interface FilterParams {
+  genres?: Set<string>;
+  yearRange?: [number, number];
+  ratingRange?: [number, number];
+  page?: number;
+  per_page?: number;
+  sort?: SortOption;
+  view?: ViewType;
+  castCrew?: Set<string>;
+  searchQuery?: string;
+  searchType?: SearchType;
+}
+
+export type FilterValue = 
+  | { genre: string; checked: boolean }
+  | [number, number]
+  | ViewType
+  | SortOption
+  | Set<string>;
+
+// Authentication Types
 export interface User {
   id: number;
   email: string;
@@ -84,7 +98,6 @@ export interface UserCreate {
   password: string;
 }
 
-// Auth Types
 export interface Token {
   access_token: string;
   token_type: string;
@@ -95,7 +108,7 @@ export interface LoginCredentials {
   password: string;
 }
 
-// Rating Type
+// Rating Types
 export interface Rating {
   movie_id: number;
   rating: number;  // 1-5 stars
@@ -109,4 +122,3 @@ export interface ApiError {
 export interface RatingResponse {
   message: string;
 }
-

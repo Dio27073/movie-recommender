@@ -45,6 +45,9 @@ class Movie(Base):
     imdb_votes = Column(Integer, nullable=True)  # Number of votes on IMDB
     trailer_url = Column(String(500), nullable=True)  # Store trailer URL from TMDB
 
+    # Add cast and crew
+    cast = Column(String(1000), nullable=True)  # Comma-separated list of cast members
+    crew = Column(String(1000), nullable=True)  
     
     # Keep average_rating for compatibility, but now it will be derived from IMDB
     average_rating = Column(Float, default=0.0, nullable=False)
