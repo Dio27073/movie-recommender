@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Movie } from '../features/movies/types';
 import { MovieCard } from './movies/MovieCard';
@@ -69,10 +69,14 @@ const MovieCarousel: React.FC<MovieCarouselProps> = ({ title, movies, onMovieCli
           ref={scrollRef}
           className="flex overflow-x-auto gap-4 pb-4 scrollbar-hide cursor-grab select-none"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          onMouseDown={onMouseDown}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            onMouseDown(e);
+          }}
           onMouseLeave={onMouseLeave}
           onMouseUp={onMouseUp}
           onMouseMove={onMouseMove}
+          draggable={false}
         >
           {movies.map((movie) => (
             <div 
