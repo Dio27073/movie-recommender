@@ -59,9 +59,13 @@ const useMovieFilters = (onPageReset: () => void) => {
       case 'sort':
         setSortBy(value as SortOption);
         break;
-      case 'castCrew':
+      case 'castCrew': {
+        console.log('Updating castCrew filter:', value); // Debug log
         setSelectedCastCrew(value as Set<string>);
+        // Clear search query when adding cast/crew filter
+        setSearchQuery('');
         break;
+      }
     }
   }, [onPageReset]);
 
@@ -72,13 +76,11 @@ const useMovieFilters = (onPageReset: () => void) => {
   }, [onPageReset]);
 
   const handleCastCrewSelect = useCallback((name: string) => {
-    setSelectedCastCrew(prev => {
-      const newSet = new Set(prev);
-      newSet.add(name);
-      return newSet;
-    });
-    setSearchQuery('');
-  }, []);
+    console.log('Adding cast/crew filter:', name); // Debug log
+    const newSet = new Set(selectedCastCrew);
+    newSet.add(name);
+    handleFilterChange('castCrew', newSet);
+  }, [selectedCastCrew, handleFilterChange]);
 
   const filters = useMemo((): FilterParams => ({
     genres: selectedGenres,

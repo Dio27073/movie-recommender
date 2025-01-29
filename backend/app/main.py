@@ -213,12 +213,35 @@ def get_movies(
     min_rating: float = None,
     max_rating: float = None, 
     sort: str = "imdb_rating_desc",
+    cast_crew: str = None,  # Add this parameter
+    search: str = None,     # Add this for completeness
+    search_type: str = None,# Add this for completeness
     db: Session = Depends(get_db)
     ):
     
     offset = (page - 1) * per_page
     query = db.query(models.Movie)
     
+    # Add cast/crew filtering
+    if cast_crew:
+        query = query.filter(
+            or_(
+                models.Movie.cast.ilike(f"%{cast_crew}%"),
+                models.Movie.crew.ilike(f"%{cast_crew}%")
+            )
+        )
+
+    if search and search_type:
+        if search_type == "cast_crew":
+            query = query.filter(
+                or_(
+                    models.Movie.cast.ilike(f"%{search}%"),
+                    models.Movie.crew.ilike(f"%{search}%")
+                )
+            )
+        elif search_type == "title":
+            query = query.filter(models.Movie.title.ilike(f"%{search}%"))
+            
     if genres:
         genre_list = genres.split(',')
         query = query.filter(

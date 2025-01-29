@@ -49,6 +49,7 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
     
     if (filters.castCrew?.size) {
       Array.from(filters.castCrew).forEach(person => {
+        console.log('Adding cast/crew filter:', person);
         urlParams.append('cast_crew', person);
       });
     }
@@ -73,6 +74,7 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
         urlParams.append('search_type', filters.searchType);
       }
     }
+    console.log('Final URL params:', urlParams.toString());
 
     return urlParams;
   }, [
@@ -92,6 +94,7 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
     
     try {
       const url = `http://localhost:8000/movies/?${params}`;
+      console.log('Fetching movies with URL:', url); // Add this log
       const response = await fetch(url);
       
       if (!response.ok) {
@@ -99,6 +102,7 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
       }
       
       const data = await response.json();
+      console.log('API Response:', data); // Add this log
       
       setMovies(data.items);
       setPagination({

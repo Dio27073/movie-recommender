@@ -67,6 +67,7 @@ import {
       page?: number;
       per_page?: number;
       genres?: string;
+      cast_crew?: string[];  // Add this type
       min_year?: number;
       max_year?: number;
       min_rating?: number;
@@ -77,7 +78,12 @@ import {
       // Add all params to query string
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined) {
-          queryParams.append(key, value.toString());
+          if (Array.isArray(value)) {
+            // Handle arrays like cast_crew
+            value.forEach(v => queryParams.append(key, v));
+          } else {
+            queryParams.append(key, value.toString());
+          }
         }
       });
   

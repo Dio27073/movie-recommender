@@ -209,9 +209,11 @@ export const MovieSearch = ({
     if ('title' in result) {
       onMovieSelect(result);
     } else if (onCastCrewSelect) {
+      console.log('Selecting cast/crew member:', result.name); // Debug log
       onCastCrewSelect(result.name);
     }
     onClose();
+    // Clear the search query after selection
     onSearchChange('', searchType);
   };
 
