@@ -1,6 +1,6 @@
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import MovieRecommendations from './components/movies/MovieRecommendations';
-import MovieDetails from './components/movies/MovieDetails';
+import HomePage from './components/HomePage';
 import { ThemeProvider } from './features/theme/themeContext';
 import { ThemeToggle } from './components/ui/ThemeToggle';
 
@@ -13,8 +13,8 @@ function App() {
             <ThemeToggle />
           </nav>
           <Routes>
-            <Route path="/" element={<MovieRecommendations />} />
-            <Route path="/movie/:id" element={<MovieDetails />} />
+            <Route path="/" element={<HomePage />} />
+            <Route path="/browse" element={<MovieRecommendations />} />
           </Routes>
         </div>
       </Router>
