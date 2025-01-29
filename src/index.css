@@ -2,12 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
-.scrollbar-hide::-webkit-scrollbar {
-    display: none;
+@layer base {
+  html {
+    @apply bg-light-primary dark:bg-dark-primary;
+    @apply text-light-text dark:text-dark-text;
   }
   
-  /* Hide scrollbar for IE, Edge and Firefox */
-  .scrollbar-hide {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+  body {
+    @apply bg-light-primary dark:bg-dark-primary;
+    @apply text-light-text dark:text-dark-text;
+    @apply min-h-screen;
+    overscroll-behavior-y: none;
   }
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}

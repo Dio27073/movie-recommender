@@ -8,7 +8,7 @@ function App() {
   return (
     <ThemeProvider>
       <Router>
-        <div className="min-h-screen bg-light-primary dark:bg-dark-primary text-light-text dark:text-dark-text transition-colors duration-200">
+        <div className="min-h-screen transition-colors duration-200">
           <nav className="fixed top-4 right-4 z-50">
             <ThemeToggle />
           </nav>

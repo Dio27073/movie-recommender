@@ -199,7 +199,7 @@ const MovieRecommendations = () => {
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-dark-primary p-8">
       <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">
-        Movie Recommender
+        
       </h1>
 
       <div className="flex justify-between items-center mb-6">
