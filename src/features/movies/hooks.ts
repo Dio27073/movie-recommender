@@ -178,6 +178,32 @@ export const useMovieSearch = () => {
   return { searchMovies, searchResults, loading, error, searchPagination };
 };
 
+
+export const useAllGenres = () => {
+  const [genres, setGenres] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    const fetchGenres = async () => {
+      try {
+        const response = await fetch('/api/genres'); // Adjust the endpoint as needed
+        if (!response.ok) throw new Error('Failed to fetch genres');
+        const data = await response.json();
+        setGenres(data);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch genres'));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchGenres();
+  }, []);
+
+  return { genres, isLoading, error };
+};
+
 // Movie rating hook
 export const useRateMovie = () => {
   const [loading, setLoading] = useState(false);

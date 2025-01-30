@@ -25,3 +25,9 @@
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
+
+input[type="checkbox"] {
+  background-color: #c9e6ec; /* or any dark color you prefer */
+  appearance: none;
+  -webkit-appearance: none;
+}

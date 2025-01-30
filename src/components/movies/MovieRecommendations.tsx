@@ -205,62 +205,66 @@ const MovieRecommendations = () => {
       <div className="flex justify-between items-center mb-6">
         <ViewSwitcher currentView={viewType} onViewChange={handleViewChange} />
       </div>
-      
-      <MovieFilter
-        genres={allGenres}
-        selectedGenres={selectedGenres}
-        yearRange={yearRange}
-        ratingRange={ratingRange}
-        sortBy={sortBy}
-        viewType={viewType}
-        onFilterChange={handleFilterChange}
-        minYear={MIN_YEAR}
-        maxYear={CURRENT_YEAR}
-        searchQuery={searchQuery}
-        searchType={searchType}
-        onSearchChange={handleSearchChange}
-        onCastCrewSelect={handleCastCrewSelect}
-        selectedCastCrew={selectedCastCrew}
-        onMovieSelect={handleMovieClick}
-      />
+
+      <div className="relative z-50">
+        <MovieFilter
+          genres={allGenres}
+          selectedGenres={selectedGenres}
+          yearRange={yearRange}
+          ratingRange={ratingRange}
+          sortBy={sortBy}
+          viewType={viewType}
+          onFilterChange={handleFilterChange}
+          minYear={MIN_YEAR}
+          maxYear={CURRENT_YEAR}
+          searchQuery={searchQuery}
+          searchType={searchType}
+          onSearchChange={handleSearchChange}
+          onCastCrewSelect={handleCastCrewSelect}
+          selectedCastCrew={selectedCastCrew}
+          onMovieSelect={handleMovieClick}
+        />
+      </div>
   
-      {movies.length === 0 && !moviesLoading ? (
-        <div className="text-gray-600 dark:text-gray-400 p-4 mb-4">
-          No movies found. Please adjust your filters and try again.
-        </div>
-      ) : (
-        <main>
-          {moviesLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <Loader className="w-8 h-8 text-blue-500 dark:text-blue-400 animate-spin" />
-            </div>
-          ) : (
-            <div className="flex flex-col">
-              <div className={getViewClassName()}>
-                {movies.map((movie) => (
-                  <MovieCard
-                    key={movie.id}
-                    movie={{
-                      ...movie,
-                      genres: getGenresArray(movie.genres),
-                    }}
-                    viewType={viewType}
-                    onMovieClick={handleMovieClick}
-                  />
-                ))}
+      <div className="relative z-0">
+        {movies.length === 0 && !moviesLoading ? (
+          <div className="text-gray-600 dark:text-gray-400 p-4 mb-4">
+            No movies found. Please adjust your filters and try again.
+          </div>
+        ) : (
+          <main>
+            {moviesLoading ? (
+              <div className="flex justify-center items-center h-64">
+                <Loader className="w-8 h-8 text-blue-500 dark:text-blue-400 animate-spin" />
               </div>
-              
-              {pagination && pagination.totalPages > 1 && (
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={pagination.totalPages}
-                  onPageChange={handlePageChange}
-                />
-              )}
-            </div>
-          )}
-        </main>
-      )}
+            ) : (
+              <div className="flex flex-col">
+                <div className={getViewClassName()}>
+                  {movies.map((movie) => (
+                    <MovieCard
+                      key={movie.id}
+                      movie={{
+                        ...movie,
+                        genres: getGenresArray(movie.genres),
+                      }}
+                      viewType={viewType}
+                      onMovieClick={handleMovieClick}
+                    />
+                  ))}
+                </div>
+                
+                {pagination && pagination.totalPages > 1 && (
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={pagination.totalPages}
+                    onPageChange={handlePageChange}
+                  />
+                )}
+              </div>
+            )}
+          </main>
+        )}
+      </div>
 
       <MovieDetailsModal
         movie={selectedMovie}
