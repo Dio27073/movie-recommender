@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { Play, Search, Star } from 'lucide-react';
 import MovieCarousel from './MovieCarousel';
 import { Movie } from '../features/movies/types';
