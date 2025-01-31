@@ -5,6 +5,9 @@ import MovieCarousel from './MovieCarousel';
 import { Movie } from '../features/movies/types';
 import { MovieDetailsModal } from './movies/MovieDetailsModal';
 import apiService from '../services/api';
+import { useAuth } from '../context/AuthContext'; // Add this import
+import { useNavigate } from 'react-router-dom'; // Add this import
+
 
 const HomePage = () => {
   const [trendingMovies, setTrendingMovies] = useState<Movie[]>([]);
@@ -12,6 +15,8 @@ const HomePage = () => {
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const { isAuthenticated } = useAuth(); // Add this
+  const navigate = useNavigate(); // Add this
 
   useEffect(() => {
     const fetchMovies = async () => {
@@ -46,8 +51,23 @@ const HomePage = () => {
     setIsModalOpen(true);
   };
 
+  const handleExploreClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (isAuthenticated) {
+      navigate('/browse');
+    } else {
+      // Navigate to login with a redirect URL
+      navigate('/browse', { 
+        state: { 
+          from: '/browse',
+          message: 'Please log in to access personalized movie recommendations' 
+        } 
+      });
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-light-primary dark:bg-dark-primary">
+    <div className="min-h-screen bg-light-primary dark:bg-dark-primary pt-16">
       {/* Hero Section */}
       <div className="relative h-[70vh] bg-gradient-to-b from-gray-900 via-gray-900 to-gray-800">
         {/* Animated background pattern */}
@@ -66,15 +86,15 @@ const HomePage = () => {
           <p className="text-xl md:text-2xl text-center mb-8 max-w-2xl text-gray-300">
             Personalized recommendations based on your taste and viewing history
           </p>
-          <Link
-            to="/browse"
+          <button
+            onClick={handleExploreClick}
             className="group relative px-8 py-3 overflow-hidden rounded-full bg-gradient-to-r from-blue-500 to-teal-500 hover:from-blue-600 hover:to-teal-600 text-white font-semibold text-lg transition-all duration-300"
           >
             <span className="relative z-10">Start Exploring</span>
             <div className="absolute inset-0 -translate-x-full group-hover:translate-x-0 bg-gradient-to-r from-blue-600 to-teal-600 transition-transform duration-300" />
-          </Link>
+          </button>
         </div>
-
+        
         {/* Bottom fade */}
         <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-gray-900 to-transparent" />
       </div>

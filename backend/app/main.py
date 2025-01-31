@@ -14,6 +14,8 @@ from sqlalchemy import or_, desc, asc
 import requests
 import os
 from dotenv import load_dotenv
+from datetime import timedelta
+from jose import JWTError, jwt
 
 # Load environment variables
 load_dotenv()
@@ -32,6 +34,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # API Keys
 TMDB_API_KEY = os.getenv("TMDB_API_KEY", "55975ac268099c9f0957d3aafb5eeae8")
 OMDB_API_KEY = os.getenv("OMDB_API_KEY", "f8ed048e")  # You'll need to get this from omdbapi.com
@@ -41,12 +44,46 @@ TMDB_BASE_URL = "https://api.themoviedb.org/3"
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
 OMDB_BASE_URL = "http://www.omdbapi.com"
 
-# Auth setup remains the same
+# Password hashing configuration
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-SECRET_KEY = "your-secret-key"
+
+# JWT Configuration
+SECRET_KEY = "your-secret-key-keep-it-secret" # In production, use a proper secret key
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+# Password verification
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+# User authentication
+def authenticate_user(db: Session, username_or_email: str, password: str):
+    # Try to find user by email or username
+    user = db.query(models.User).filter(
+        or_(
+            models.User.email == username_or_email,
+            models.User.username == username_or_email
+        )
+    ).first()
+    
+    if not user or not verify_password(password, user.hashed_password):
+        return False
+    return user
+
+# Token creation
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
 def get_db():
     db = SessionLocal()
@@ -123,11 +160,132 @@ async def fetch_movie_cast_crew(tmdb_id: int) -> dict:
         print(f"Error fetching cast/crew for movie {tmdb_id}: {str(e)}")
     return {"cast": [], "crew": []}
 
+# User registration endpoint
+@app.post("/register", response_model=schemas.User)
+def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    # Check if email already exists
+    db_user = db.query(models.User).filter(models.User.email == user.email).first()
+    if db_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+    
+    # Check if username already exists
+    db_user = db.query(models.User).filter(models.User.username == user.username).first()
+    if db_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username already taken"
+        )
+    
+    # Create new user
+    hashed_password = get_password_hash(user.password)
+    db_user = models.User(
+        email=user.email,
+        username=user.username,
+        hashed_password=hashed_password
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+# Login endpoint
+@app.post("/token", response_model=schemas.Token)
+async def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username/email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+# Get current user dependency
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+        token_data = schemas.TokenData(email=email)
+    except JWTError:
+        raise credentials_exception
+        
+    user = db.query(models.User).filter(models.User.email == token_data.email).first()
+    if user is None:
+        raise credentials_exception
+    return user
+
+# Get current active user dependency
+async def get_current_active_user(
+    current_user: models.User = Depends(get_current_user)
+):
+    if not current_user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    return current_user
+
+# Protected user profile endpoint example
+@app.get("/users/me", response_model=schemas.User)
+async def read_users_me(
+    current_user: models.User = Depends(get_current_active_user)
+):
+    return current_user
+
+# Update user profile endpoint
+@app.put("/users/me", response_model=schemas.User)
+async def update_user_profile(
+    user_update: schemas.UserBase,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    # Check if new email already exists
+    if user_update.email != current_user.email:
+        db_user = db.query(models.User).filter(models.User.email == user_update.email).first()
+        if db_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+    
+    # Check if new username already exists
+    if user_update.username != current_user.username:
+        db_user = db.query(models.User).filter(models.User.username == user_update.username).first()
+        if db_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already taken"
+            )
+    
+    # Update user profile
+    current_user.email = user_update.email
+    current_user.username = user_update.username
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
 @app.on_event("startup")
 async def startup_event():
     db = SessionLocal()
     if db.query(models.Movie).count() == 0:
-        total_pages = 80
+        total_pages = 150
         processed_movies = set()
         
         for page in range(1, total_pages + 1):
