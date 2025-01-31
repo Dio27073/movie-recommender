@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import authService from '../../services/authService';
 import { useAuth } from '../../context/AuthContext';  // Add this import
 
 const LoginForm = () => {

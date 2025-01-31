@@ -3,7 +3,6 @@ import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import MovieRecommendations from './components/movies/MovieRecommendations';
 import HomePage from './components/HomePage';
 import { ThemeProvider } from './features/theme/themeContext';
-import { ThemeToggle } from './components/ui/ThemeToggle';
 import { LoginForm, RegisterForm } from './components/auth';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
