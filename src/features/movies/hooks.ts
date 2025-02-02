@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import apiService from '../../services/api';
 import { Movie, Rating, FilterParams } from './types';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { recommendationService, RecommendationFilters } from '../../services/recommendationService';
 
 interface PaginationData {
   total: number;
@@ -226,4 +228,103 @@ export const useRateMovie = () => {
   }, []);
 
   return { rateMovie, loading, error };
+};
+
+export const useMovieRecommendations = (filters: RecommendationFilters = {}) => {
+  return useQuery({
+    queryKey: ['recommendations', filters],
+    queryFn: () => recommendationService.getRecommendations(filters),
+    placeholderData: (previousData) => previousData, // Replace keepPreviousData with placeholderData
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+  });
+};
+
+// Hook for getting similar movies
+export const useSimilarMovies = (movieId: number) => {
+  return useQuery({
+    queryKey: ['similar-movies', movieId],
+    queryFn: () => recommendationService.getSimilarMovies(movieId),
+    enabled: !!movieId, // Only run if movieId is provided
+  });
+};
+
+// Hook for getting recently watched recommendations
+export const useRecentlyWatchedRecommendations = () => {
+  return useQuery({
+    queryKey: ['recently-watched-recommendations'],
+    queryFn: () => recommendationService.getRecentlyWatchedRecommendations(),
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+// Hook for recording movie views
+export const useRecordMovieView = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ 
+      movieId, 
+      data 
+    }: { 
+      movieId: number; 
+      data: { completed: boolean; watch_duration?: number; }
+    }) => recommendationService.recordMovieView(movieId, data),
+    onSuccess: () => {
+      // Invalidate relevant queries to trigger refetch
+      queryClient.invalidateQueries({ queryKey: ['recommendations'] });
+      queryClient.invalidateQueries({ queryKey: ['recently-watched-recommendations'] });
+    },
+  });
+};
+
+// Hook for updating user preferences
+export const useUpdatePreferences = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: recommendationService.updatePreferences,
+    onSuccess: () => {
+      // Invalidate recommendations to get fresh data based on new preferences
+      queryClient.invalidateQueries({ queryKey: ['recommendations'] });
+    },
+  });
+};
+
+// Hook for getting trending recommendations
+export const useTrendingRecommendations = () => {
+  return useQuery({
+    queryKey: ['trending-recommendations'],
+    queryFn: () => recommendationService.getTrendingRecommendations(),
+    staleTime: 15 * 60 * 1000, // Keep trending data fresh for 15 minutes
+  });
+};
+
+// Hook for getting genre-based recommendations
+export const useGenreRecommendations = (genre: string) => {
+  return useQuery({
+    queryKey: ['genre-recommendations', genre],
+    queryFn: () => recommendationService.getGenreRecommendations(genre),
+    enabled: !!genre,
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+// Custom hook to combine recommendation sources
+export const useCombinedRecommendations = (filters: RecommendationFilters = {}) => {
+  const personalizedRecs = useMovieRecommendations(filters);
+  const trendingRecs = useTrendingRecommendations();
+  const recentlyWatchedRecs = useRecentlyWatchedRecommendations();
+
+  return {
+    personalizedRecs: personalizedRecs.data,
+    trendingRecs: trendingRecs.data,
+    recentlyWatchedRecs: recentlyWatchedRecs.data,
+    isLoading: personalizedRecs.isLoading || trendingRecs.isLoading || recentlyWatchedRecs.isLoading,
+    isError: personalizedRecs.isError || trendingRecs.isError || recentlyWatchedRecs.isError,
+    refetch: () => {
+      personalizedRecs.refetch();
+      trendingRecs.refetch();
+      recentlyWatchedRecs.refetch();
+    },
+  };
 };

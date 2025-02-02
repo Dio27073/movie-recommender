@@ -23,7 +23,7 @@ const HomePage = () => {
         // Fetch trending movies (sorted by rating)
         const trendingResponse = await apiService.getMovies({
           sort: 'imdb_rating_desc',
-          per_page: 10
+          per_page: 30
         });
         setTrendingMovies(trendingResponse.items || []);
 
@@ -32,7 +32,7 @@ const HomePage = () => {
         const recentResponse = await apiService.getMovies({
           sort: 'release_date_desc',
           max_year: currentDate.getFullYear(),
-          per_page: 10
+          per_page: 30
         });
         setRecentMovies(recentResponse.items || []);
       } catch (error) {

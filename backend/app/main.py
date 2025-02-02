@@ -1,21 +1,20 @@
 # backend/app/main.py
 from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List, Optional  # Add Optional here
-import jwt
-from passlib.context import CryptContext
-from datetime import datetime, timedelta
-from . import models, schemas
-from .database import SessionLocal, engine
+from typing import List, Optional
 import time
 from sqlalchemy import or_, desc, asc
 import requests
 import os
 from dotenv import load_dotenv
-from datetime import timedelta
-from jose import JWTError, jwt
+from datetime import datetime
+
+from . import models, schemas
+from .database import SessionLocal, engine, get_db
+from .recommender.engine import router as recommender_router, MovieRecommender
+from .auth_utils import get_current_active_user
+from .routers.auth import router as auth_router
 
 # Load environment variables
 load_dotenv()
@@ -25,6 +24,9 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Movie Recommender")
 
+# Initialize recommender system
+recommender = MovieRecommender()
+
 # CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
@@ -32,8 +34,20 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]  # Added this line
 )
 
+# Include routers
+app.include_router(
+    recommender_router,
+    prefix="/api/recommender",
+    tags=["recommender"]
+)
+app.include_router(
+    auth_router,
+    prefix="/auth",
+    tags=["authentication"]
+)
 
 # API Keys
 TMDB_API_KEY = os.getenv("TMDB_API_KEY", "55975ac268099c9f0957d3aafb5eeae8")
@@ -45,56 +59,22 @@ TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
 OMDB_BASE_URL = "http://www.omdbapi.com"
 
 # Password hashing configuration
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# JWT Configuration
-SECRET_KEY = "your-secret-key-keep-it-secret" # In production, use a proper secret key
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# Password verification
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
-
-# User authentication
-def authenticate_user(db: Session, username_or_email: str, password: str):
-    # Try to find user by email or username
-    user = db.query(models.User).filter(
-        or_(
-            models.User.email == username_or_email,
-            models.User.username == username_or_email
-        )
-    ).first()
+async def fetch_imdb_data(title: str, year: int, retry_count: int = 0) -> dict:
+    """Fetch IMDB data for a movie using OMDB API with exponential backoff"""
+    max_retries = 3
+    base_delay = 0.5  # Start with 1 second delay
     
-    if not user or not verify_password(password, user.hashed_password):
-        return False
-    return user
-
-# Token creation
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-def get_db():
-    db = SessionLocal()
     try:
-        yield db
-    finally:
-        db.close()
-
-async def fetch_imdb_data(title: str, year: int) -> dict:
-    """Fetch IMDB data for a movie using OMDB API"""
-    try:
+        if retry_count > 0:
+            # Exponential backoff: 1s, 2s, 4s
+            wait_time = base_delay * (2 ** (retry_count - 1))
+            print(f"Retry #{retry_count} for {title}. Waiting {wait_time} seconds...")
+            time.sleep(wait_time)
+        else:
+            time.sleep(base_delay)  # Regular delay for first attempt
+        
         response = requests.get(
             OMDB_BASE_URL,
             params={
@@ -104,17 +84,33 @@ async def fetch_imdb_data(title: str, year: int) -> dict:
                 "type": "movie"
             }
         )
+        
         if response.status_code == 200:
             data = response.json()
+            
+            # Check for rate limit error
+            if data.get("Response") == "False" and "limit reached" in data.get("Error", "").lower():
+                if retry_count < max_retries:
+                    print(f"Rate limit hit for {title}. Attempting retry #{retry_count + 1}")
+                    return await fetch_imdb_data(title, year, retry_count + 1)
+                else:
+                    print(f"Max retries reached for {title}. Skipping IMDB data.")
+                    return None
+            
             if data.get("Response") == "True":
                 return {
                     "imdb_id": data.get("imdbID"),
                     "imdb_rating": float(data.get("imdbRating", 0)) if data.get("imdbRating") != "N/A" else None,
                     "imdb_votes": int(data.get("imdbVotes", "0").replace(",", "")) if data.get("imdbVotes") != "N/A" else None
                 }
-        return None
+            
+            print(f"No IMDB data found for {title} (not a rate limit issue)")
+            return None
+            
     except Exception as e:
         print(f"Error fetching IMDB data for {title} ({year}): {str(e)}")
+        if retry_count < max_retries:
+            return await fetch_imdb_data(title, year, retry_count + 1)
         return None
     
 async def fetch_movie_trailer(tmdb_id: int) -> Optional[str]:
@@ -161,205 +157,207 @@ async def fetch_movie_cast_crew(tmdb_id: int) -> dict:
     return {"cast": [], "crew": []}
 
 # User registration endpoint
-@app.post("/register", response_model=schemas.User)
-def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    # Check if email already exists
-    db_user = db.query(models.User).filter(models.User.email == user.email).first()
-    if db_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
-    
-    # Check if username already exists
-    db_user = db.query(models.User).filter(models.User.username == user.username).first()
-    if db_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already taken"
-        )
-    
-    # Create new user
-    hashed_password = get_password_hash(user.password)
-    db_user = models.User(
-        email=user.email,
-        username=user.username,
-        hashed_password=hashed_password
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
-
-# Login endpoint
-@app.post("/token", response_model=schemas.Token)
-async def login_for_access_token(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db)
-):
-    user = authenticate_user(db, form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username/email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
-
-# Get current user dependency
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
-):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
-            raise credentials_exception
-        token_data = schemas.TokenData(email=email)
-    except JWTError:
-        raise credentials_exception
-        
-    user = db.query(models.User).filter(models.User.email == token_data.email).first()
-    if user is None:
-        raise credentials_exception
-    return user
-
-# Get current active user dependency
-async def get_current_active_user(
-    current_user: models.User = Depends(get_current_user)
-):
-    if not current_user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
-    return current_user
-
-# Protected user profile endpoint example
-@app.get("/users/me", response_model=schemas.User)
-async def read_users_me(
-    current_user: models.User = Depends(get_current_active_user)
-):
-    return current_user
-
-# Update user profile endpoint
-@app.put("/users/me", response_model=schemas.User)
-async def update_user_profile(
-    user_update: schemas.UserBase,
-    current_user: models.User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    # Check if new email already exists
-    if user_update.email != current_user.email:
-        db_user = db.query(models.User).filter(models.User.email == user_update.email).first()
-        if db_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
-            )
-    
-    # Check if new username already exists
-    if user_update.username != current_user.username:
-        db_user = db.query(models.User).filter(models.User.username == user_update.username).first()
-        if db_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already taken"
-            )
-    
-    # Update user profile
-    current_user.email = user_update.email
-    current_user.username = user_update.username
-    db.commit()
-    db.refresh(current_user)
-    return current_user
-
 @app.on_event("startup")
 async def startup_event():
     db = SessionLocal()
-    if db.query(models.Movie).count() == 0:
-        total_pages = 150
-        processed_movies = set()
-        
-        for page in range(1, total_pages + 1):
-            response = requests.get(
-                f"{TMDB_BASE_URL}/movie/popular",
-                params={
-                    "api_key": TMDB_API_KEY,
-                    "language": "en-US",
-                    "page": page
-                }
-            )
-            movies_data = response.json()["results"]
-            
-            for movie_data in movies_data:
+    try:
+        # Initialize movies if database is empty
+        if db.query(models.Movie).count() == 0:
+            total_pages = 200
+            processed_movies = set()
+            total_processed = 0
+            total_skipped = 0
+
+            print(f"Starting movie import process for {total_pages} pages...")
+
+            for page in range(1, total_pages + 1):
                 try:
-                    if movie_data["id"] in processed_movies:
+                    print(f"\nProcessing page {page}/{total_pages}")
+                    response = requests.get(
+                        f"{TMDB_BASE_URL}/movie/popular",
+                        params={
+                            "api_key": TMDB_API_KEY,
+                            "language": "en-US",
+                            "page": page
+                        }
+                    )
+                    
+                    if response.status_code == 429:  # Too Many Requests
+                        print(f"Rate limit hit on page {page}. Waiting 10 seconds...")
+                        time.sleep(10)
+                        continue
+                        
+                    if response.status_code != 200:
+                        print(f"Error on page {page}: Status code {response.status_code}")
                         continue
 
-                    movie_details = requests.get(
-                        f"{TMDB_BASE_URL}/movie/{movie_data['id']}",
-                        params={"api_key": TMDB_API_KEY, "language": "en-US"}
-                    ).json()
+                    movies_data = response.json().get("results", [])
+                    if not movies_data:
+                        print(f"No movies found on page {page}")
+                        continue
+
+                    page_processed = 0
+                    page_skipped = 0
                     
-                    if all(key in movie_data for key in ["title", "overview", "release_date", "vote_average", "poster_path"]):
-                        if not movie_data["release_date"]:
-                            continue
-                            
+                    for movie_data in movies_data:
                         try:
-                            release_year = int(movie_data["release_date"][:4])
-                        except (ValueError, IndexError):
+                            if movie_data["id"] in processed_movies:
+                                print(f"Skipped duplicate movie: {movie_data.get('title')}")
+                                page_skipped += 1
+                                continue
+
+                            if not all(key in movie_data for key in ["title", "overview", "release_date", "vote_average", "poster_path"]):
+                                print(f"Skipped movie due to missing data: {movie_data.get('title')}")
+                                page_skipped += 1
+                                continue
+
+                            if not movie_data["release_date"]:
+                                print(f"Skipped movie due to missing release date: {movie_data.get('title')}")
+                                page_skipped += 1
+                                continue
+
+                            # Get detailed movie info
+                            details_response = requests.get(
+                                f"{TMDB_BASE_URL}/movie/{movie_data['id']}",
+                                params={"api_key": TMDB_API_KEY, "language": "en-US"}
+                            )
+                            
+                            if details_response.status_code != 200:
+                                print(f"Failed to get details for movie {movie_data.get('title')}: Status {details_response.status_code}")
+                                page_skipped += 1
+                                continue
+
+                            movie_details = details_response.json()
+                                
+                            try:
+                                release_year = int(movie_data["release_date"][:4])
+                            except (ValueError, IndexError):
+                                print(f"Invalid release date for movie {movie_data.get('title')}")
+                                page_skipped += 1
+                                continue
+
+                            # Fetch IMDB data
+                            imdb_data = await fetch_imdb_data(movie_data["title"], release_year)
+                            if not imdb_data:
+                                print(f"No IMDB data found for movie {movie_data.get('title')}")
+                            
+                            # Fetch cast and crew data
+                            cast_crew_data = await fetch_movie_cast_crew(movie_data["id"])
+                            if not cast_crew_data["cast"] and not cast_crew_data["crew"]:
+                                print(f"No cast/crew data found for movie {movie_data.get('title')}")
+
+                            # Calculate rating
+                            if imdb_data and imdb_data["imdb_rating"]:
+                                converted_rating = (imdb_data["imdb_rating"] / 2)
+                            else:
+                                converted_rating = (movie_data["vote_average"] / 2)
+                            
+                            converted_rating = min(max(converted_rating, 0), 5)
+                            
+                            # Fetch trailer URL
+                            trailer_url = await fetch_movie_trailer(movie_data["id"])
+                            if not trailer_url:
+                                print(f"No trailer found for movie {movie_data.get('title')}")
+
+                            # Initialize popularity metrics
+                            popularity_score = movie_data.get("popularity", 0)
+                            
+                            # Create movie record
+                            movie = models.Movie(
+                                title=movie_data["title"],
+                                description=movie_data["overview"],
+                                genres=",".join([genre["name"] for genre in movie_details["genres"]]),
+                                release_year=release_year,
+                                average_rating=converted_rating,
+                                imageUrl=f"{TMDB_IMAGE_BASE_URL}{movie_data['poster_path']}",
+                                imdb_id=imdb_data["imdb_id"] if imdb_data else None,
+                                imdb_rating=imdb_data["imdb_rating"] if imdb_data else None,
+                                imdb_votes=imdb_data["imdb_votes"] if imdb_data else None,
+                                trailer_url=trailer_url,
+                                cast=",".join(cast_crew_data["cast"]),
+                                crew=",".join(cast_crew_data["crew"]),
+                                popularity_score=popularity_score,
+                                view_count=0,
+                                completion_rate=0.0,
+                                rating_count=0,
+                                keywords=movie_details.get("tagline", "")
+                            )
+                            db.add(movie)
+                            processed_movies.add(movie_data["id"])
+                            page_processed += 1
+                            total_processed += 1
+                            print(f"Successfully processed: {movie_data.get('title')}")
+
+                        except Exception as e:
+                            print(f"Error processing movie {movie_data.get('title', 'Unknown')}: {str(e)}")
+                            page_skipped += 1
                             continue
 
-                        # Fetch IMDB data
-                        imdb_data = await fetch_imdb_data(movie_data["title"], release_year)
-                        
-                        cast_crew_data = await fetch_movie_cast_crew(movie_data["id"])
-
-                        # If we have IMDB data, use it for the rating
-                        if imdb_data and imdb_data["imdb_rating"]:
-                            # Convert IMDB rating (0-10) to our scale (0-5)
-                            converted_rating = (imdb_data["imdb_rating"] / 2)
-                        else:
-                            # Fallback to TMDB rating if no IMDB rating
-                            converted_rating = (movie_data["vote_average"] / 2)
-                        
-                        # Ensure the rating is within our constraints
-                        converted_rating = min(max(converted_rating, 0), 5)
-                        
-                        trailer_url = await fetch_movie_trailer(movie_data["id"])
+                    print(f"Page {page} summary: Processed {page_processed}, Skipped {page_skipped}")
+                    total_skipped += page_skipped
                     
-                        movie = models.Movie(
-                            title=movie_data["title"],
-                            description=movie_data["overview"],
-                            genres=",".join([genre["name"] for genre in movie_details["genres"]]),
-                            release_year=release_year,
-                            average_rating=converted_rating,
-                            imageUrl=f"{TMDB_IMAGE_BASE_URL}{movie_data['poster_path']}",
-                            imdb_id=imdb_data["imdb_id"] if imdb_data else None,
-                            imdb_rating=imdb_data["imdb_rating"] if imdb_data else None,
-                            imdb_votes=imdb_data["imdb_votes"] if imdb_data else None,
-                            trailer_url=trailer_url,
-                            cast=",".join(cast_crew_data["cast"]),
-                            crew=",".join(cast_crew_data["crew"])
-                        )
-                        db.add(movie)
-                        processed_movies.add(movie_data["id"])
+                    # Commit after each page
+                    try:
+                        db.commit()
+                    except Exception as e:
+                        print(f"Error committing page {page}: {str(e)}")
+                        db.rollback()
+                        continue
+
+                    # Rate limiting
+                    time.sleep(0.5)
+
                 except Exception as e:
-                    print(f"Error processing movie {movie_data.get('title', 'Unknown')}: {str(e)}")
+                    print(f"Error processing page {page}: {str(e)}")
                     continue
-            
-            db.commit()
-            time.sleep(0.5)  # Rate limiting
-    
-    db.close()
+
+            print(f"\nImport process completed:")
+            print(f"Total movies processed: {total_processed}")
+            print(f"Total movies skipped: {total_skipped}")
+            print(f"Total unique movies: {len(processed_movies)}")
+        
+        # Initialize recommendation system
+        print("\nInitializing recommendation system...")
+        
+        # Prepare movie data for content-based filtering
+        movies = db.query(models.Movie).all()
+        movies_data = [
+            {
+                "id": m.id,
+                "title": m.title,
+                "genres": m.genres,
+                "director": m.crew.split(",")[0] if m.crew else "",
+                "cast": m.cast,
+                "description": m.description,
+                "keywords": m.keywords
+            } for m in movies
+        ]
+        
+        print(f"Preparing content features for {len(movies_data)} movies...")
+        recommender.prepare_content_features(movies_data)
+        
+        # Initialize collaborative filtering with viewing history
+        viewing_history = db.query(models.ViewingHistory).all()
+        if viewing_history:
+            print(f"Training collaborative model with {len(viewing_history)} viewing records...")
+            viewing_data = [
+                {
+                    "user_id": vh.user_id,
+                    "movie_id": vh.movie_id,
+                    "rating": 5.0 if vh.completed else (vh.watch_duration or 0) / 7200  # Convert duration to rating
+                } for vh in viewing_history
+            ]
+            recommender.train_collaborative_model(viewing_data)
+        else:
+            print("No viewing history found for collaborative filtering")
+        
+        print("Recommendation system initialization completed successfully")
+        
+    except Exception as e:
+        print(f"Error during startup: {str(e)}")
+        raise
+    finally:
+        db.close()
 
 @app.get("/movies/", response_model=schemas.PaginatedMovieResponse)
 def get_movies(
@@ -518,6 +516,106 @@ def search_movies_by_cast_crew(
         "has_next": page < total_pages,
         "has_prev": page > 1
     }
+
+# Add new endpoint for personalized recommendations
+@app.get("/movies/recommended/", response_model=schemas.PaginatedMovieResponse)
+async def get_recommended_movies(
+    current_user: models.User = Depends(get_current_active_user),
+    page: int = 1,
+    per_page: int = 12,
+    db: Session = Depends(get_db)
+):
+    # Get user's viewing history
+    recently_viewed = db.query(models.ViewingHistory)\
+        .filter(models.ViewingHistory.user_id == current_user.id)\
+        .order_by(desc(models.ViewingHistory.watched_at))\
+        .limit(10)\
+        .all()
+    
+    recently_viewed_ids = [vh.movie_id for vh in recently_viewed]
+    
+    # Get recommendations
+    recommended_ids = recommender.get_hybrid_recommendations(
+        user_id=current_user.id,
+        recently_viewed=recently_viewed_ids
+    )
+    
+    # Paginate recommendations
+    start_idx = (page - 1) * per_page
+    end_idx = start_idx + per_page
+    page_recommended_ids = recommended_ids[start_idx:end_idx]
+    
+    # Fetch movie details
+    recommended_movies = db.query(models.Movie)\
+        .filter(models.Movie.id.in_(page_recommended_ids))\
+        .all()
+    
+    # Format response
+    total_recommendations = len(recommended_ids)
+    total_pages = (total_recommendations + per_page - 1) // per_page
+    
+    movie_list = []
+    for db_movie in recommended_movies:
+        movie_dict = {
+            "id": db_movie.id,
+            "title": db_movie.title,
+            "description": db_movie.description,
+            "release_year": db_movie.release_year,
+            "average_rating": db_movie.average_rating,
+            "imageUrl": db_movie.imageUrl,
+            "genres": db_movie.genres.split(",") if db_movie.genres else [],
+            "imdb_id": db_movie.imdb_id,
+            "imdb_rating": db_movie.imdb_rating,
+            "imdb_votes": db_movie.imdb_votes,
+            "trailer_url": db_movie.trailer_url,
+            "cast": db_movie.cast.split(",") if db_movie.cast else [],
+            "crew": db_movie.crew.split(",") if db_movie.crew else []
+        }
+        movie_list.append(movie_dict)
+    
+    return {
+        "items": movie_list,
+        "total": total_recommendations,
+        "page": page,
+        "total_pages": total_pages,
+        "has_next": page < total_pages,
+        "has_prev": page > 1
+    }
+
+# Add endpoint to record viewing history
+@app.post("/movies/{movie_id}/view")
+async def record_movie_view(
+    movie_id: int,
+    completed: bool = False,
+    watch_duration: Optional[int] = None,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    # Check if movie exists
+    movie = db.query(models.Movie).filter(models.Movie.id == movie_id).first()
+    if not movie:
+        raise HTTPException(status_code=404, detail="Movie not found")
+    
+    # Record viewing history
+    view_history = models.ViewingHistory(
+        user_id=current_user.id,
+        movie_id=movie_id,
+        completed=completed,
+        watch_duration=watch_duration
+    )
+    db.add(view_history)
+    
+    # Update movie popularity score
+    movie.view_count += 1
+    if completed:
+        movie.completion_rate = (
+            (movie.completion_rate * (movie.view_count - 1) + 1) / movie.view_count
+        )
+    
+    # Commit changes
+    db.commit()
+    
+    return {"status": "success", "message": "View recorded successfully"}
 
 @app.post("/movies/", response_model=schemas.Movie)
 async def create_movie(movie: schemas.MovieCreate, db: Session = Depends(get_db)):

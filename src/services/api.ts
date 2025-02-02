@@ -3,12 +3,25 @@ import {
   MovieCreate,
   Rating,
   RatingResponse,
-  ApiError
+  ApiError,
+  MovieRecommendation,
+  RecommendationResponse,
+  RecommendationFilters,
+  UserPreferences
 } from '../features/movies/types';
 
 import { AuthResponse, LoginCredentials, RegisterCredentials, User } from './authService';
 
 const API_URL = 'http://localhost:8000';
+
+interface MovieResponse {
+  items: Movie[];
+  total: number;
+  page: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
 
 class ApiService {
   private token: string | null = null;
@@ -68,107 +81,160 @@ class ApiService {
     }
   }
 
-  // Authentication Methods
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
-    const formData = new FormData();
-    formData.append('username', credentials.username);
-    formData.append('password', credentials.password);
-
-    const response = await fetch(`${API_URL}/token`, {
+    return this.request<AuthResponse>('/auth/login', {
       method: 'POST',
-      body: formData,
+      body: JSON.stringify(credentials)
     });
-
-    if (!response.ok) {
-      throw new Error('Login failed');
-    }
-
-    const data = await response.json();
-    this.setToken(data.access_token);
-    return data;
   }
 
-  async register(credentials: RegisterCredentials): Promise<void> {
-    return this.request<void>('/register', {
+  async register(credentials: RegisterCredentials): Promise<AuthResponse> {
+    return this.request<AuthResponse>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify(credentials),
+      body: JSON.stringify(credentials)
     });
   }
 
   async getCurrentUser(): Promise<User> {
-    return this.request<User>('/users/me');
-  }
-
-  async updateUser(userData: Partial<User>): Promise<User> {
-    return this.request<User>('/users/me', {
-      method: 'PUT',
-      body: JSON.stringify(userData),
+    if (!this.token) {
+      throw new Error('No authentication token');
+    }
+    return this.request<User>('/auth/me', {
+      method: 'GET'
     });
   }
 
-  // Movie Methods
-  async getMovies(params: {
-    page?: number;
-    per_page?: number;
-    genres?: string;
-    cast_crew?: string[];
-    min_year?: number;
-    max_year?: number;
-    min_rating?: number;
-    sort?: string;
-  } = {}): Promise<any> {
+  async getRecommendations(filters: RecommendationFilters = {}): Promise<RecommendationResponse> {
+    if (!this.token) {
+      throw new Error('Authentication required for recommendations');
+    }
+
+    // Get current user to get the user ID
+    const user = await this.getCurrentUser();
+
     const queryParams = new URLSearchParams();
-    
+
+    // Convert snake_case to camelCase for backend compatibility
+    if (filters.excludeWatched !== undefined) {
+      queryParams.append('exclude_watched', filters.excludeWatched.toString());
+    }
+    if (filters.minRating !== undefined) {
+      queryParams.append('min_rating', filters.minRating.toString());
+    }
+    if (filters.strategy) {
+      queryParams.append('strategy', filters.strategy);
+    }
+    if (filters.genres?.length) {
+      filters.genres.forEach(genre => queryParams.append('genres', genre));
+    }
+    if (filters.page) {
+      queryParams.append('page', filters.page.toString());
+    }
+    if (filters.per_page) {
+      queryParams.append('per_page', filters.per_page.toString());
+    }
+
+    const queryString = queryParams.toString();
+    return this.request<RecommendationResponse>(
+      `/api/recommender/recommendations/${user.id}${queryString ? `?${queryString}` : ''}`
+    );
+  }
+  
+  async getSimilarMovies(movieId: number): Promise<Movie[]> {
+    return this.request<Movie[]>(`/api/recommender/similar/${movieId}`);
+  }
+
+  async getRecentlyWatchedRecommendations(): Promise<Movie[]> {
+    if (!this.token) {
+      throw new Error('Authentication required');
+    }
+    return this.request<Movie[]>('/api/recommender/recently-watched');
+  }
+
+  async getMovies(params: {
+    sort?: string;
+    per_page?: number;
+    max_year?: number;
+    min_year?: number;
+    genres?: string[];
+    page?: number;
+  } = {}): Promise<MovieResponse> {
+    const queryParams = new URLSearchParams();
+
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined) {
         if (Array.isArray(value)) {
-          value.forEach(v => queryParams.append(key, v));
+          value.forEach(v => queryParams.append(key, v.toString()));
         } else {
           queryParams.append(key, value.toString());
         }
       }
     });
 
-    return this.request<any>(`/movies/?${queryParams.toString()}`);
+    return this.request<MovieResponse>(`/movies/?${queryParams.toString()}`);
   }
 
-  async getMovie(id: string | number): Promise<Movie> {
-    return this.request<Movie>(`/movies/${id}`);
-  }
-  
-  async createMovie(movie: MovieCreate): Promise<Movie> {
-    return this.request<Movie>('/movies/', {
+  async recordMovieView(
+    movieId: number, 
+    data: { completed: boolean; watch_duration?: number }
+  ): Promise<void> {
+    if (!this.token) {
+      throw new Error('Authentication required');
+    }
+    
+    return this.request<void>(`/movies/${movieId}/view`, {
       method: 'POST',
-      body: JSON.stringify(movie),
+      body: JSON.stringify(data),
     });
   }
 
-  // Rating Methods
-  async rateMovie(rating: Rating): Promise<RatingResponse> {
+  async updateRecommendationPreferences(preferences: UserPreferences): Promise<void> {
     if (!this.token) {
       throw new Error('Authentication required');
     }
 
-    return this.request<RatingResponse>('/rate/', {
-      method: 'POST',
-      body: JSON.stringify(rating),
+    return this.request<void>('/api/recommender/preferences', {
+      method: 'PUT',
+      body: JSON.stringify(preferences),
     });
   }
 
-  async getMovieTrailer(id: string | number): Promise<string> {
-    const response = await this.request<{ trailer_url: string }>(`/movies/${id}/trailer`);
-    return response.trailer_url;
+  async rateMovie(rating: Rating): Promise<RatingResponse> {
+    return this.request<RatingResponse>(`/movies/${rating.movie_id}/rate`, {
+      method: 'POST',
+      body: JSON.stringify(rating)
+    });
   }
 
-  // Test connection method
-  async testConnection(): Promise<boolean> {
-    try {
-      await fetch(API_URL);
-      return true;
-    } catch (error) {
-      console.error('Connection test failed:', error);
-      return false;
+  async getTrendingRecommendations(): Promise<Movie[]> {
+    return this.request<Movie[]>('/api/recommender/trending');
+  }
+
+  async getGenreRecommendations(genre: string): Promise<Movie[]> {
+    return this.request<Movie[]>(`/api/recommender/genre/${genre}`);
+  }
+
+  // View History Methods
+  async getViewingHistory(): Promise<{
+    movie_id: number;
+    watched_at: string;
+    completed: boolean;
+    watch_duration?: number;
+  }[]> {
+    if (!this.token) {
+      throw new Error('Authentication required');
     }
+    
+    return this.request<any[]>('/movies/history');
+  }
+
+  // User Preferences Methods
+  async getUserPreferences(): Promise<UserPreferences> {
+    if (!this.token) {
+      throw new Error('Authentication required');
+    }
+    
+    return this.request<UserPreferences>('/api/recommender/preferences');
   }
 }
 
