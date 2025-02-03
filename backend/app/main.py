@@ -163,7 +163,7 @@ async def startup_event():
     try:
         # Initialize movies if database is empty
         if db.query(models.Movie).count() == 0:
-            total_pages = 200
+            total_pages = 15
             processed_movies = set()
             total_processed = 0
             total_skipped = 0
@@ -674,3 +674,147 @@ async def create_movie(movie: schemas.MovieCreate, db: Session = Depends(get_db)
         "imdb_votes": db_movie.imdb_votes,
         "trailer_url": db_movie.trailer_url
     }
+
+@app.post("/movies/{movie_id}/rate")
+async def rate_movie(
+    movie_id: int,
+    rating: float,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Rate a movie (1-5 stars)"""
+    if rating < 1 or rating > 5:
+        raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
+        
+    # Check if movie exists
+    movie = db.query(models.Movie).filter(models.Movie.id == movie_id).first()
+    if not movie:
+        raise HTTPException(status_code=404, detail="Movie not found")
+    
+    # Update or create rating
+    user_rating = db.query(models.UserMovieRating).filter(
+        models.UserMovieRating.user_id == current_user.id,
+        models.UserMovieRating.movie_id == movie_id
+    ).first()
+    
+    if user_rating:
+        user_rating.rating = rating
+        user_rating.rated_at = datetime.utcnow()
+    else:
+        user_rating = models.UserMovieRating(
+            user_id=current_user.id,
+            movie_id=movie_id,
+            rating=rating
+        )
+        db.add(user_rating)
+    
+    # Update movie's average rating
+    all_ratings = db.query(models.UserMovieRating).filter(
+        models.UserMovieRating.movie_id == movie_id
+    ).all()
+    movie.average_rating = sum(r.rating for r in all_ratings) / len(all_ratings)
+    movie.rating_count = len(all_ratings)
+    
+    db.commit()
+    return {"status": "success", "message": "Rating recorded successfully"}
+
+@app.get("/api/users/me/library")
+async def get_user_library(
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    # Get viewing history
+    viewed_movies = db.query(models.ViewingHistory)\
+        .filter(models.ViewingHistory.user_id == current_user.id)\
+        .order_by(models.ViewingHistory.watched_at.desc())\
+        .all()
+    
+    # Get rated movies
+    rated_movies = db.query(models.Rating)\
+        .filter(models.Rating.user_id == current_user.id)\
+        .order_by(models.Rating.created_at.desc())\
+        .all()
+    
+    # Get movie details for each entry
+    viewed_movies_data = []
+    for vh in viewed_movies:
+        movie = db.query(models.Movie).filter(models.Movie.id == vh.movie_id).first()
+        if movie:
+            viewed_movies_data.append({
+                "movie_id": vh.movie_id,
+                "title": movie.title,
+                "imageUrl": movie.imageUrl,
+                "watched_at": vh.watched_at,
+                "completed": vh.completed
+            })
+
+    rated_movies_data = []
+    for rm in rated_movies:
+        movie = db.query(models.Movie).filter(models.Movie.id == rm.movie_id).first()
+        if movie:
+            rated_movies_data.append({
+                "movie_id": rm.movie_id,
+                "title": movie.title,
+                "imageUrl": movie.imageUrl,
+                "rating": rm.rating,
+                "rated_at": rm.created_at
+            })
+
+    return {
+        "viewed_movies": viewed_movies_data,
+        "rated_movies": rated_movies_data
+    }
+
+@app.post("/api/movies/{movie_id}/view")
+async def add_to_library(
+    movie_id: int,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    # Check if movie exists
+    movie = db.query(models.Movie).filter(models.Movie.id == movie_id).first()
+    if not movie:
+        raise HTTPException(status_code=404, detail="Movie not found")
+    
+    # Create viewing history entry
+    viewing_history = models.ViewingHistory(
+        user_id=current_user.id,
+        movie_id=movie_id,
+        watched_at=datetime.utcnow(),
+        completed=True
+    )
+    
+    # Add to database
+    db.add(viewing_history)
+    
+    # Update movie stats
+    movie.view_count += 1
+    
+    try:
+        db.commit()
+        return {"status": "success", "message": "Movie added to library"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to add movie to library")
+    
+@app.delete("/api/movies/{movie_id}/view")
+async def remove_from_library(
+    movie_id: int,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    # Delete the viewing history entry
+    result = db.query(models.ViewingHistory).filter(
+        models.ViewingHistory.user_id == current_user.id,
+        models.ViewingHistory.movie_id == movie_id
+    ).delete()
+    
+    if result == 0:
+        raise HTTPException(status_code=404, detail="Movie not found in library")
+    
+    try:
+        db.commit()
+        return {"status": "success", "message": "Movie removed from library"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to remove movie from library")

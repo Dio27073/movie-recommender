@@ -8,6 +8,7 @@ import { LoginForm, RegisterForm } from './components/auth';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/ui/Navbar';
+import LibraryPage from './components/LibraryPage';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -52,6 +53,14 @@ function App() {
                       <RecommendationSection onMovieClick={handleMovieClick} />
                     </ProtectedRoute>
                   } />
+
+                  <Route path="/library" element={
+                    <ProtectedRoute>
+                      <LibraryPage />
+                    </ProtectedRoute>
+                  } />
+
+
                 </Routes>
               </div>
             </div>

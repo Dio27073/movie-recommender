@@ -130,7 +130,7 @@ async def train_recommender(db: Session = Depends(get_db)):
     recommender.prepare_content_features(movies_data)
     
     # Fetch ratings and train collaborative model
-    ratings = db.query(Rating).all()
+    ratings = db.query(models.UserMovieRating).all()
     ratings_data = [
         {
             "user_id": r.user_id,

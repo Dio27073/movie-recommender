@@ -14,6 +14,7 @@ import { MovieFilter } from './MovieFilter';
 import { MovieDetailsModal } from './MovieDetailsModal';
 import { ViewSwitcher } from '../ui/ViewSwitcher';
 import { Pagination } from '../ui/Pagination';
+import { useLibrary } from '../../features/movies/hooks/useLibrary';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const MIN_YEAR = 1888;
@@ -123,6 +124,17 @@ const MovieRecommendations = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const { 
+    watchedMovies, 
+    ratedMovies,
+    addToLibrary: handleAddToLibrary 
+  } = useLibrary();
+
+  const isInLibrary = useCallback((movieId: number) => {
+    return watchedMovies.some(m => m.movie_id === movieId) || 
+           ratedMovies.some(m => m.movie_id === movieId);
+  }, [watchedMovies, ratedMovies]);
 
   const handlePageReset = useCallback(() => setCurrentPage(1), []);
   
@@ -249,7 +261,9 @@ const MovieRecommendations = () => {
                       }}
                       viewType={viewType}
                       onMovieClick={handleMovieClick}
-                    />
+                      onAddToLibrary={handleAddToLibrary}
+                      isInLibrary={isInLibrary(movie.id)}
+                      />
                   ))}
                 </div>
                 

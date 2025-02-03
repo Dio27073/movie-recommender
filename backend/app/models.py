@@ -8,6 +8,9 @@ from .database import Base
 
 class Rating(Base):
     __tablename__ = "ratings"
+    __table_args__ = (
+        CheckConstraint('rating >= 1 AND rating <= 5'),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete='CASCADE'))
@@ -19,7 +22,7 @@ class Rating(Base):
     # Relationships
     user = relationship("User", back_populates="user_ratings")
     movie = relationship("Movie", back_populates="movie_ratings")
-
+    
 class ViewingHistory(Base):
     __tablename__ = "viewing_history"
 
@@ -33,6 +36,8 @@ class ViewingHistory(Base):
     # Relationships
     user = relationship("User", back_populates="viewing_history")
     movie = relationship("Movie", back_populates="views")
+    last_position = Column(Integer, nullable=True)  # Last watched position in seconds
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 class User(Base):
     __tablename__ = "users"
@@ -52,6 +57,9 @@ class User(Base):
     # Relationships
     user_ratings = relationship("Rating", back_populates="user", cascade="all, delete-orphan")
     viewing_history = relationship("ViewingHistory", back_populates="user", cascade="all, delete-orphan")
+    last_activity = Column(DateTime(timezone=True), onupdate=func.now())
+    recommendation_preferences = Column(String(1000), nullable=True)  # JSON string for storing detailed preferences
+    excluded_genres = Column(String(500), nullable=True) 
 
 class Movie(Base):
     __tablename__ = "movies"
@@ -84,14 +92,19 @@ class Movie(Base):
     keywords = Column(String(1000), nullable=True)  # Extracted keywords from description
     similar_movies = Column(String(500), nullable=True)  # Comma-separated IDs of similar movies
     
+    # Relationships
+    movie_ratings = relationship("Rating", back_populates="movie", cascade="all, delete-orphan")
+    views = relationship("ViewingHistory", back_populates="movie", cascade="all, delete-orphan")
+
+    last_recommended_at = Column(DateTime(timezone=True), nullable=True)  # Track when movie was last recommended
+    recommendation_count = Column(Integer, default=0, nullable=False) 
+
     __table_args__ = (
         CheckConstraint('release_year >= 1888'),
         CheckConstraint('imdb_rating >= 0 AND imdb_rating <= 10'),
         CheckConstraint('average_rating >= 0 AND average_rating <= 5'),
         CheckConstraint('popularity_score >= 0'),
         CheckConstraint('completion_rate >= 0 AND completion_rate <= 1'),
+        CheckConstraint('recommendation_count >= 0'),
     )
     
-    # Relationships
-    movie_ratings = relationship("Rating", back_populates="movie", cascade="all, delete-orphan")
-    views = relationship("ViewingHistory", back_populates="movie", cascade="all, delete-orphan")

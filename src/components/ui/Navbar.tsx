@@ -2,6 +2,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
+import { BookMarked, Home, User, Film } from 'lucide-react';
 
 const Navbar = () => {
   const { isAuthenticated, logout } = useAuth();
@@ -38,6 +39,15 @@ const Navbar = () => {
                 >
                   AI
                 </Link>
+                
+                <Link 
+                to="/library" 
+                className="flex items-center space-x-1 px-3 py-2 rounded-md hover:bg-accent"
+                >
+                <BookMarked className="w-4 h-4" />
+                <span>My Library</span>
+              </Link>
+
                 <button
                   onClick={handleLogout}
                   className="text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-500"

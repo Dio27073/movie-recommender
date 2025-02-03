@@ -154,3 +154,11 @@ export interface ApiError {
 export interface RatingResponse {
   message: string;
 }
+
+export interface LibraryMovie extends Movie {
+  movie_id: number;  // ID from the backend
+  watched_at?: string;  // ISO date string
+  rating?: number;  // 1-5 stars
+  rated_at?: string;  // ISO date string
+  completed?: boolean;
+}

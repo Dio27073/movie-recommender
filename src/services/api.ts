@@ -236,6 +236,25 @@ class ApiService {
     
     return this.request<UserPreferences>('/api/recommender/preferences');
   }
+
+  async getUserLibrary() {
+    return this.request<any>('/api/users/me/library', {
+      method: 'GET'
+    });
+  }
+  
+  async addToLibrary(movieId: number) {
+    return this.request<any>(`/api/movies/${movieId}/view`, {
+      method: 'POST',
+      body: JSON.stringify({ completed: true })
+    });
+  }
+  
+  async removeFromLibrary(movieId: number) {
+    return this.request<any>(`/api/movies/${movieId}/view`, {
+      method: 'DELETE'
+    });
+  }
 }
 
 // Create a singleton instance
