@@ -2,6 +2,8 @@ import React, { useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Movie } from '../features/movies/types';
 import { MovieCard } from './movies/MovieCard';
+import HomeMovieCard from './movies/HomeMovieCard';
+
 
 interface MovieCarouselProps {
   title: string;
@@ -89,12 +91,11 @@ const MovieCarousel: React.FC<MovieCarouselProps> = ({ title, movies, onMovieCli
                 }
               }}
             >
-              <MovieCard
+              <HomeMovieCard
                 movie={{
                   ...movie,
                   genres: Array.isArray(movie.genres) ? movie.genres : movie.genres.split(',').map(g => g.trim())
                 }}
-                viewType="grid"
                 onMovieClick={onMovieClick}
               />
             </div>

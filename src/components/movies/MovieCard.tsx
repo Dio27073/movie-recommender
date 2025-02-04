@@ -1,14 +1,22 @@
-import { Star } from 'lucide-react';
-import { MovieCardProps, Movie } from '../../features/movies/types';
+import { Star, BookmarkPlus, BookmarkX } from 'lucide-react';
+import { Movie } from '../../features/movies/types';
 import { ViewType } from '../ui/ViewSwitcher';
-import { BookmarkPlus, Check } from 'lucide-react';
 import { useState } from 'react';
 
 // Types
-interface ExtendedMovieCardProps extends MovieCardProps {
+interface MovieCardProps {
+  movie: Movie;
   onMovieClick: (movie: Movie) => void;
   viewType: ViewType;
   onAddToLibrary?: (movieId: number) => Promise<void>;
+  onRemoveFromLibrary?: (movieId: number) => Promise<void>;
+  isInLibrary?: boolean;
+}
+
+interface ViewComponentProps {
+  movie: Movie;
+  onAddToLibrary?: (movieId: number) => Promise<void>;
+  onRemoveFromLibrary?: (movieId: number) => Promise<void>;
   isInLibrary?: boolean;
 }
 
@@ -37,28 +45,34 @@ const Rating = ({ rating, size = 'medium' }: { rating: number | null | undefined
 
 const LibraryButton = ({ 
   movieId, 
-  isInLibrary, 
+  isInLibrary,
   onAddToLibrary,
+  onRemoveFromLibrary,
   size = 'medium'
 }: { 
   movieId: number; 
   isInLibrary?: boolean;
   onAddToLibrary?: (movieId: number) => Promise<void>;
+  onRemoveFromLibrary?: (movieId: number) => Promise<void>;
   size?: 'small' | 'medium';
 }) => {
-  const [isAdding, setIsAdding] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent movie card click
-    if (!onAddToLibrary || isInLibrary) return;
+    if (!onAddToLibrary || !onRemoveFromLibrary) return;
 
-    setIsAdding(true);
+    setIsLoading(true);
     try {
-      await onAddToLibrary(movieId);
+      if (isInLibrary) {
+        await onRemoveFromLibrary(movieId);
+      } else {
+        await onAddToLibrary(movieId);
+      }
     } catch (error) {
-      console.error('Failed to add to library:', error);
+      console.error('Failed to update library:', error);
     }
-    setIsAdding(false);
+    setIsLoading(false);
   };
 
   const buttonClasses = size === 'small' 
@@ -68,27 +82,29 @@ const LibraryButton = ({
   return (
     <button
       onClick={handleClick}
-      disabled={isAdding || isInLibrary}
+      disabled={isLoading}
       className={`
         ${buttonClasses}
         flex items-center gap-1 rounded-md
         ${isInLibrary 
-          ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' 
+          ? 'bg-blue-100 text-blue-700 hover:bg-red-100 hover:text-red-700 dark:bg-blue-900 dark:text-blue-300 dark:hover:bg-red-900 dark:hover:text-red-300' 
           : 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300'
         }
         transition-colors duration-200
         disabled:opacity-50 disabled:cursor-not-allowed
       `}
     >
-      {isInLibrary ? (
+      {isLoading ? (
+        <span>Loading...</span>
+      ) : isInLibrary ? (
         <>
-          <Check className="w-4 h-4" />
-          <span>In Library</span>
+          <BookmarkX className="w-4 h-4" />
+          <span>Remove</span>
         </>
       ) : (
         <>
           <BookmarkPlus className="w-4 h-4" />
-          <span>{isAdding ? 'Adding...' : 'Add to Library'}</span>
+          <span>Add to Library</span>
         </>
       )}
     </button>
@@ -96,11 +112,7 @@ const LibraryButton = ({
 };
 
 // View-specific components
-const GridView = ({ movie, onAddToLibrary, isInLibrary }: { 
-  movie: Movie; 
-  onAddToLibrary?: (movieId: number) => Promise<void>;
-  isInLibrary?: boolean;
-}) => (
+const GridView = ({ movie, onAddToLibrary, onRemoveFromLibrary, isInLibrary }: ViewComponentProps) => (
   <>
     <div className="relative">
       <img
@@ -113,6 +125,7 @@ const GridView = ({ movie, onAddToLibrary, isInLibrary }: {
           movieId={movie.id} 
           isInLibrary={isInLibrary}
           onAddToLibrary={onAddToLibrary}
+          onRemoveFromLibrary={onRemoveFromLibrary}
           size="small"
         />
       </div>
@@ -139,11 +152,7 @@ const GridView = ({ movie, onAddToLibrary, isInLibrary }: {
   </>
 );
 
-const ListView = ({ movie, onAddToLibrary, isInLibrary }: { 
-  movie: Movie;
-  onAddToLibrary?: (movieId: number) => Promise<void>;
-  isInLibrary?: boolean;
-}) => (
+const ListView = ({ movie, onAddToLibrary, onRemoveFromLibrary, isInLibrary }: ViewComponentProps) => (
   <>
     <img
       src={movie.imageUrl || '/api/placeholder/200/300'}
@@ -166,6 +175,7 @@ const ListView = ({ movie, onAddToLibrary, isInLibrary }: {
             movieId={movie.id} 
             isInLibrary={isInLibrary}
             onAddToLibrary={onAddToLibrary}
+            onRemoveFromLibrary={onRemoveFromLibrary}
           />
         </div>
       </div>
@@ -181,11 +191,7 @@ const ListView = ({ movie, onAddToLibrary, isInLibrary }: {
   </>
 );
 
-const CompactView = ({ movie, onAddToLibrary, isInLibrary }: { 
-  movie: Movie;
-  onAddToLibrary?: (movieId: number) => Promise<void>;
-  isInLibrary?: boolean;
-}) => (
+const CompactView = ({ movie, onAddToLibrary, onRemoveFromLibrary, isInLibrary }: ViewComponentProps) => (
   <>
     <img
       src={movie.imageUrl || '/api/placeholder/200/300'}
@@ -207,6 +213,7 @@ const CompactView = ({ movie, onAddToLibrary, isInLibrary }: {
           movieId={movie.id} 
           isInLibrary={isInLibrary}
           onAddToLibrary={onAddToLibrary}
+          onRemoveFromLibrary={onRemoveFromLibrary}
           size="small"
         />
         <span className="text-sm text-gray-600 dark:text-gray-400">
@@ -218,14 +225,14 @@ const CompactView = ({ movie, onAddToLibrary, isInLibrary }: {
 );
 
 // Main component
-// Main component
 export const MovieCard = ({ 
   movie, 
   onMovieClick,
   viewType,
   onAddToLibrary,
+  onRemoveFromLibrary,
   isInLibrary
-}: ExtendedMovieCardProps) => {
+}: MovieCardProps) => {
   const baseClasses = "cursor-pointer bg-white dark:bg-dark-secondary rounded-lg shadow-lg overflow-hidden transform transition-all duration-200 hover:shadow-xl dark:shadow-gray-900";
   
   const viewClasses = {
@@ -251,6 +258,7 @@ export const MovieCard = ({
       <ViewComponent 
         movie={movie} 
         onAddToLibrary={onAddToLibrary}
+        onRemoveFromLibrary={onRemoveFromLibrary}
         isInLibrary={isInLibrary}
       />
     </div>

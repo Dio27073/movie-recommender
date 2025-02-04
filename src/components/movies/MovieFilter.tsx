@@ -1,10 +1,10 @@
 import { useState } from 'react';
+import { useTheme } from '../../features/theme/themeContext';
 import { MovieFilterProps } from '../../features/movies/types';
 import { MovieSearch } from './MovieSearch';
 import GenreFilter from './GenreFilter';
 import SortFilter from './SortFilter';
-import RangeFilter from './RangeFilter';  // Import the new RangeFilter
-
+import RangeFilter from './RangeFilter';
 import { 
   Calendar, 
   Star, 
@@ -15,7 +15,6 @@ import {
   ChevronUp
 } from 'lucide-react';
 
-// Subcomponents
 interface FilterTagProps {
   label: string;
   onRemove: () => void;
@@ -23,7 +22,7 @@ interface FilterTagProps {
 }
 
 const FilterTag = ({ label, onRemove, variant = 'blue' }: FilterTagProps) => {
-  const baseStyles = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium';
+  const baseStyles = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium transition-colors duration-200';
   const variantStyles = {
     blue: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
     purple: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
@@ -47,7 +46,6 @@ const FilterTag = ({ label, onRemove, variant = 'blue' }: FilterTagProps) => {
   );
 };
 
-// Main Component
 export const MovieFilter = ({ 
   selectedGenres, 
   yearRange,
@@ -65,6 +63,7 @@ export const MovieFilter = ({
 }: MovieFilterProps) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const { theme } = useTheme();
 
   const handleRemoveGenre = (genre: string) => {
     onFilterChange('genres', { genre, checked: false });
@@ -78,16 +77,29 @@ export const MovieFilter = ({
   const totalActiveFilters = selectedGenres.size + selectedCastCrew.size;
 
   return (
-    <div className="bg-gray-800/50 shadow-lg backdrop-blur-sm rounded-lg p-6 space-y-6 mb-8">
+    <div className={`
+      transition-colors duration-200 
+      ${theme === 'light' 
+        ? 'bg-white/90 shadow-lg' 
+        : 'bg-gray-800/50 backdrop-blur-sm'
+      } 
+      rounded-lg p-6 space-y-6 mb-8
+    `}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <button
             onClick={() => setIsSearchOpen(prev => !prev)}
-            className="p-2 hover:bg-gray-700/50 rounded-full transition-colors"
+            className={`
+              p-2 rounded-full transition-colors duration-200
+              ${theme === 'light'
+                ? 'hover:bg-gray-100 text-gray-600'
+                : 'hover:bg-gray-700/50 text-gray-400'
+              }
+            `}
             aria-label="Toggle search"
           >
-            <Search className="w-5 h-5 text-gray-400" />
+            <Search className="w-5 h-5" />
           </button>
           <div 
             className="flex items-center space-x-2 cursor-pointer"
@@ -97,25 +109,41 @@ export const MovieFilter = ({
             aria-expanded={isExpanded}
           >
             <Filter 
-              className={`w-5 h-5 transition-all duration-200 ${
-                isExpanded ? 'text-blue-400' : 'text-gray-400'
-              }`} 
+              className={`
+                w-5 h-5 transition-all duration-200
+                ${isExpanded 
+                  ? 'text-blue-500' 
+                  : theme === 'light' ? 'text-gray-600' : 'text-gray-400'
+                }
+              `} 
             />
-            <h3 className="text-lg font-semibold text-gray-200">
+            <h3 className={`
+              text-lg font-semibold transition-colors duration-200
+              ${theme === 'light' ? 'text-gray-800' : 'text-gray-200'}
+            `}>
               Filters
             </h3>
           </div>
         </div>
         <div className="flex items-center space-x-3">
           {totalActiveFilters > 0 && (
-            <span className="text-sm text-gray-400">
+            <span className={`
+              text-sm transition-colors duration-200
+              ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}
+            `}>
               {totalActiveFilters} active filter{totalActiveFilters !== 1 ? 's' : ''}
             </span>
           )}
           {isExpanded ? (
-            <ChevronUp className="w-5 h-5 text-gray-400" />
+            <ChevronUp className={`
+              w-5 h-5 transition-colors duration-200
+              ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}
+            `} />
           ) : (
-            <ChevronDown className="w-5 h-5 text-gray-400" />
+            <ChevronDown className={`
+              w-5 h-5 transition-colors duration-200
+              ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}
+            `} />
           )}
         </div>
       </div>
@@ -136,14 +164,12 @@ export const MovieFilter = ({
           {/* Filter Controls Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 relative">
             <div className="z-40">
-              {/* Genre Filter */}
               <GenreFilter
                 selectedGenres={selectedGenres}
                 onFilterChange={onFilterChange}
               />
             </div>
 
-            {/* Sort Selection */}
             <div className="z-40">
               <SortFilter
                 sortBy={sortBy}
@@ -151,7 +177,6 @@ export const MovieFilter = ({
               />
             </div>
 
-            {/* Year Range */}
             <RangeFilter
               label="Year Range"
               icon={<Calendar className="w-4 h-4" />}
@@ -161,7 +186,6 @@ export const MovieFilter = ({
               onChange={(values) => onFilterChange('yearRange', values)}
             />
 
-            {/* Rating Filter */}
             <RangeFilter
               label="IMDB Rating"
               icon={<Star className="w-4 h-4" />}
@@ -176,7 +200,10 @@ export const MovieFilter = ({
 
           {/* Active Filters Section */}
           {(selectedGenres.size > 0 || selectedCastCrew.size > 0) && (
-            <div className="space-y-4 pt-4 border-t border-gray-700">
+            <div className={`
+              space-y-4 pt-4 border-t transition-colors duration-200
+              ${theme === 'light' ? 'border-gray-200' : 'border-gray-700'}
+            `}>
               <div className="flex flex-wrap gap-2">
                 {Array.from(selectedGenres).map((genre) => (
                   <FilterTag

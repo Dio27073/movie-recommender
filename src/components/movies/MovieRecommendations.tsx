@@ -128,7 +128,8 @@ const MovieRecommendations = () => {
   const { 
     watchedMovies, 
     ratedMovies,
-    addToLibrary: handleAddToLibrary 
+    addToLibrary: handleAddToLibrary,
+    removeFromLibrary: handleRemoveFromLibrary  // Add this
   } = useLibrary();
 
   const isInLibrary = useCallback((movieId: number) => {
@@ -262,6 +263,7 @@ const MovieRecommendations = () => {
                       viewType={viewType}
                       onMovieClick={handleMovieClick}
                       onAddToLibrary={handleAddToLibrary}
+                      onRemoveFromLibrary={handleRemoveFromLibrary}  // Add this
                       isInLibrary={isInLibrary(movie.id)}
                       />
                   ))}
