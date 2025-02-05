@@ -42,6 +42,22 @@ const Badge = ({ children, variant = 'default' }: BadgeProps) => {
   );
 };
 
+const StreamPlayer = ({ movieId, title }: { movieId: string; title: string }) => {
+  return (
+    <div className="w-full bg-gray-900 rounded-lg overflow-hidden">
+      <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+        <iframe
+          src={`https://vidsrc.icu/embed/movie/${movieId}`}
+          title={title}
+          className="absolute inset-0 w-full h-full border-none"
+          allow="fullscreen"
+          allowFullScreen
+        />
+      </div>
+    </div>
+  );
+};
+
 // Video Player Component
 const VideoPlayer = ({ url, title }: VideoPlayerProps) => {
   const [error, setError] = React.useState<string | null>(null);
@@ -209,6 +225,16 @@ export const MovieDetailsModal = ({
               Watch Trailer
             </h3>
             <VideoPlayer url={movie.trailer_url} title={movie.title} />
+          </div>
+        )}
+
+        {/* Stream Section */}
+        {movie?.imdb_id && (
+          <div className="mt-6">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
+              Watch Movie
+            </h3>
+            <StreamPlayer movieId={movie.imdb_id} title={movie.title} />
           </div>
         )}
       </div>

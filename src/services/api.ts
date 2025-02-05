@@ -255,6 +255,12 @@ class ApiService {
       method: 'DELETE'
     });
   }
+
+  getStreamUrl(movieId: string): string {
+    // Handle both IMDB and TMDB IDs
+    const id = movieId.startsWith('tt') ? movieId : `tt${movieId}`;
+    return `https://vidsrc.icu/embed/movie/${id}`;
+  }
 }
 
 // Create a singleton instance
