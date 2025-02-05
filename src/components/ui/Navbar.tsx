@@ -16,11 +16,12 @@ const Navbar = () => {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
       <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-0">
-        
         <div className="flex justify-between h-16 items-center">
           <div className="flex items-center">
-            <Link to="/" className="text-xl font-bold text-blue-600 dark:text-blue-500 mr-2 px-0 py-0">
-              MovieApp
+            <Link to="/" className="animate-marquee"> {/* Apply the class here */}
+              <span className="bg-gradient-to-r from-blue-500 via-teal-500 to-pink-500 bg-clip-text text-2xl font-extrabold text-transparent text-center select-none">
+                Cine Verse {/* Your glowing text here */}
+              </span>
             </Link>
           </div>
 
