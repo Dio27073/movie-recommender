@@ -72,6 +72,9 @@ export interface FilterParams {
   castCrew?: Set<string>;
   searchQuery?: string;
   searchType?: SearchType;
+  contentRating?: Set<string>;
+  moodTags?: Set<string>;
+  streamingPlatforms?: Set<string>;
 }
 
 export type FilterValue = 
@@ -79,7 +82,10 @@ export type FilterValue =
   | { type: 'range'; value: [number, number] }
   | { type: 'view'; value: ViewType }
   | { type: 'sort'; value: SortOption }
-  | { type: 'castCrew'; value: Set<string> };
+  | { type: 'castCrew'; value: Set<string> }
+  | { type: 'contentRating'; value: Set<string> }
+  | { type: 'moodTags'; value: Set<string> }
+  | { type: 'streamingPlatforms'; value: Set<string> };
 
 // Component Props Types
 export interface MovieCardProps {
@@ -88,21 +94,22 @@ export interface MovieCardProps {
 }
 
 export interface MovieFilterProps {
-  genres: string[];
   selectedGenres: Set<string>;
   yearRange: [number, number];
   ratingRange: [number, number];
   sortBy: SortOption;
-  viewType: ViewType;
   onFilterChange: (filterType: keyof FilterParams, value: FilterValue) => void;
   minYear: number;
   maxYear: number;
   searchQuery: string;
   searchType: SearchType;
   onSearchChange: (query: string, type: SearchType) => void;
-  selectedCastCrew: Set<string>;
   onCastCrewSelect: (name: string) => void;
+  selectedCastCrew: Set<string>;
   onMovieSelect: (movie: Movie) => void;
+  selectedContentRatings?: Set<string>;
+  selectedMoods?: Set<string>;
+  selectedPlatforms?: Set<string>;
 }
 
 // User and Authentication Types

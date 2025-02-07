@@ -96,8 +96,18 @@ class Movie(Base):
     movie_ratings = relationship("Rating", back_populates="movie", cascade="all, delete-orphan")
     views = relationship("ViewingHistory", back_populates="movie", cascade="all, delete-orphan")
 
-    last_recommended_at = Column(DateTime(timezone=True), nullable=True)  # Track when movie was last recommended
+    # Track when movie was last recommended
+    last_recommended_at = Column(DateTime(timezone=True), nullable=True)
     recommendation_count = Column(Integer, default=0, nullable=False) 
+
+    # Content Rating fields
+    content_rating = Column(String(10), nullable=True)  # e.g., 'G', 'PG', 'PG-13', 'R'
+    
+    # Mood tags (comma-separated)
+    mood_tags = Column(String(500), nullable=True)  # e.g., 'feel-good,romantic,intense'
+    
+    # Streaming platforms (comma-separated)
+    streaming_platforms = Column(String(500), nullable=True)  # e.g., 'netflix,hulu,prime'
 
     __table_args__ = (
         CheckConstraint('release_year >= 1888'),

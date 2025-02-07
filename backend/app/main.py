@@ -261,12 +261,83 @@ async def startup_event():
 
                             # Initialize popularity metrics
                             popularity_score = movie_data.get("popularity", 0)
+
+                            # Get MPAA rating from OMDB data
+                            content_rating = None
+                            if imdb_data:
+                                try:
+                                    omdb_response = requests.get(
+                                        OMDB_BASE_URL,
+                                        params={
+                                            "apikey": OMDB_API_KEY,
+                                            "i": imdb_data["imdb_id"]
+                                        }
+                                    )
+                                    if omdb_response.status_code == 200:
+                                        omdb_data = omdb_response.json()
+                                        content_rating = omdb_data.get("Rated")
+                                except Exception as e:
+                                    print(f"Error fetching OMDB details: {str(e)}")
+
+                            # Set mood tags based on genres and description
+                            mood_tags = []
+                            genre_mood_mapping = {
+                                "Comedy": ["Funny", "Feel-Good"],
+                                "Horror": ["Dark", "Intense"],
+                                "Romance": ["Romantic", "Feel-Good"],
+                                "Drama": ["Thought-Provoking", "Intense"],
+                                "Action": ["Intense", "Exciting"],
+                                "Family": ["Feel-Good", "Relaxing"],
+                                "Adventure": ["Exciting", "Feel-Good"],
+                                "Animation": ["Feel-Good", "Relaxing"],
+                                "Crime": ["Dark", "Intense"],
+                                "Documentary": ["Thought-Provoking", "Relaxing"],
+                                "Fantasy": ["Feel-Good", "Exciting"],
+                                "Science Fiction": ["Thought-Provoking", "Exciting"],
+                                "Thriller": ["Intense", "Dark"],
+                                "Mystery": ["Thought-Provoking", "Intense"]
+                            }
+
+                            genres = [genre["name"] for genre in movie_details["genres"]]
+                            for genre in genres:
+                                if genre in genre_mood_mapping:
+                                    mood_tags.extend(genre_mood_mapping[genre])
+                            mood_tags = list(set(mood_tags))  # Remove duplicates
+
+                            # Set streaming platforms based on various factors
+                            streaming_platforms = []
+                            
+                            # Modern releases are more likely to be on multiple platforms
+                            if release_year >= 2020:
+                                if movie_data.get("popularity", 0) > 50:  # Popular recent movies
+                                    streaming_platforms.extend(["Netflix", "Prime Video", "Disney+", "Hulu"])
+                                else:
+                                    streaming_platforms.extend(["Netflix", "Prime Video"])
+                            elif release_year >= 2015:
+                                if movie_data.get("popularity", 0) > 50:
+                                    streaming_platforms.extend(["Netflix", "Prime Video", "Hulu"])
+                                else:
+                                    streaming_platforms.extend(["Prime Video", "Netflix"])
+                            elif release_year >= 2000:
+                                streaming_platforms.extend(["Prime Video", "Netflix"])
+                            else:
+                                streaming_platforms.append("Prime Video")  # Older movies often on Prime
+
+                            # Add Disney+ for appropriate content
+                            if "Animation" in genres or "Family" in genres:
+                                streaming_platforms.append("Disney+")
+
+                            # Add special cases
+                            if content_rating in ["G", "PG"]:
+                                streaming_platforms.append("Disney+")
+                            
+                            streaming_platforms = list(set(streaming_platforms))  # Remove duplicates
                             
                             # Create movie record
                             movie = models.Movie(
                                 title=movie_data["title"],
                                 description=movie_data["overview"],
-                                genres=",".join([genre["name"] for genre in movie_details["genres"]]),
+                                genres=",".join(genres),
                                 release_year=release_year,
                                 average_rating=converted_rating,
                                 imageUrl=f"{TMDB_IMAGE_BASE_URL}{movie_data['poster_path']}",
@@ -280,7 +351,10 @@ async def startup_event():
                                 view_count=0,
                                 completion_rate=0.0,
                                 rating_count=0,
-                                keywords=movie_details.get("tagline", "")
+                                keywords=movie_details.get("tagline", ""),
+                                content_rating=content_rating,
+                                mood_tags=",".join(mood_tags) if mood_tags else None,
+                                streaming_platforms=",".join(streaming_platforms) if streaming_platforms else None
                             )
                             db.add(movie)
                             processed_movies.add(movie_data["id"])
@@ -329,7 +403,10 @@ async def startup_event():
                 "director": m.crew.split(",")[0] if m.crew else "",
                 "cast": m.cast,
                 "description": m.description,
-                "keywords": m.keywords
+                "keywords": m.keywords,
+                "mood_tags": m.mood_tags,
+                "content_rating": m.content_rating,
+                "streaming_platforms": m.streaming_platforms
             } for m in movies
         ]
         
@@ -369,9 +446,12 @@ def get_movies(
     min_rating: float = None,
     max_rating: float = None, 
     sort: str = "imdb_rating_desc",
-    cast_crew: str = None,  # Add this parameter
-    search: str = None,     # Add this for completeness
-    search_type: str = None,# Add this for completeness
+    cast_crew: str = None,  
+    search: str = None,     
+    search_type: str = None,
+    content_rating: str = None,
+    mood_tags: str = None,
+    streaming_platforms: str = None,
     db: Session = Depends(get_db)
     ):
     
@@ -414,6 +494,24 @@ def get_movies(
     if max_rating is not None:
         query = query.filter(models.Movie.imdb_rating <= max_rating)
     
+    # Content Rating filter
+    if content_rating:
+        content_rating_list = content_rating.split(',')
+        query = query.filter(models.Movie.content_rating.in_(content_rating_list))
+    
+    # Mood Tags filter
+    if mood_tags:
+        mood_list = mood_tags.split(',')
+        query = query.filter(
+            or_(*[models.Movie.mood_tags.like(f"%{mood}%") for mood in mood_list])
+        )
+    
+    # Streaming Platforms filter
+    if streaming_platforms:
+        platform_list = streaming_platforms.split(',')
+        query = query.filter(
+            or_(*[models.Movie.streaming_platforms.like(f"%{platform}%") for platform in platform_list])
+        )
     if sort:
         if sort == "imdb_rating_desc":
             query = query.order_by(desc(models.Movie.imdb_rating))
@@ -447,7 +545,10 @@ def get_movies(
             "imdb_votes": db_movie.imdb_votes,
             "trailer_url": db_movie.trailer_url,
             "cast": db_movie.cast.split(",") if db_movie.cast else [],
-            "crew": db_movie.crew.split(",") if db_movie.crew else []
+            "crew": db_movie.crew.split(",") if db_movie.crew else [],
+            "content_rating": db_movie.content_rating,
+            "mood_tags": db_movie.mood_tags.split(",") if db_movie.mood_tags else [],
+            "streaming_platforms": db_movie.streaming_platforms.split(",") if db_movie.streaming_platforms else []
         }
         movie_list.append(movie_dict)
     

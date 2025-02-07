@@ -3,6 +3,8 @@ import { Star, Clock, BookMarked, Trash2 } from "lucide-react";
 import { Tabs } from '../components/ui/tabs';
 import { LibraryMovie } from '../features/movies/types';
 import { useLibrary } from '../features/movies/hooks/useLibrary';
+import { MovieDetailsModal } from '../components/movies/MovieDetailsModal';
+import { LibraryMovieModal } from '../components/movies/LibraryMovieModal';
 
 // RemoveButton Component
 const RemoveButton = ({ 
@@ -43,13 +45,22 @@ const RemoveButton = ({
   );
 };
 
-// Updated MovieCard component
-const MovieCard = ({ movie, type, onRemove }: { 
+// MovieCard component
+const MovieCard = ({ 
+  movie, 
+  type, 
+  onRemove,
+  onClick 
+}: { 
   movie: LibraryMovie;
   type: 'watched' | 'rated';
   onRemove: (movieId: number) => Promise<void>;
+  onClick: () => void;
 }) => (
-  <div className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow">
+  <div 
+    className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer"
+    onClick={onClick}
+  >
     <div className="p-4">
       <div className="flex items-start space-x-4">
         <div className="w-24 h-36 bg-gray-200 rounded">
@@ -84,15 +95,17 @@ const MovieCard = ({ movie, type, onRemove }: {
   </div>
 );
 
-// Updated MovieList component
+// MovieList component
 const MovieList = ({ 
   movies, 
   type,
-  onRemove 
+  onRemove,
+  onMovieClick 
 }: { 
   movies: LibraryMovie[]; 
   type: 'watched' | 'rated';
   onRemove: (movieId: number) => Promise<void>;
+  onMovieClick: (movie: LibraryMovie) => void;
 }) => (
   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
     {movies.map((movie) => (
@@ -101,6 +114,7 @@ const MovieList = ({
         movie={movie} 
         type={type} 
         onRemove={onRemove}
+        onClick={() => onMovieClick(movie)}
       />
     ))}
   </div>
@@ -114,6 +128,19 @@ const LibraryPage = () => {
     error,
     removeFromLibrary 
   } = useLibrary();
+
+  const [selectedMovie, setSelectedMovie] = useState<LibraryMovie | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleMovieClick = (movie: LibraryMovie) => {
+    setSelectedMovie(movie);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedMovie(null);
+  };
 
   if (error) {
     return <div className="p-8 text-center text-red-600">Error loading library: {error}</div>;
@@ -137,6 +164,7 @@ const LibraryPage = () => {
           movies={watchedMovies} 
           type="watched" 
           onRemove={removeFromLibrary}
+          onMovieClick={handleMovieClick}
         />
       ) : (
         <div className="text-center py-8 text-gray-500 dark:text-gray-400">
@@ -157,6 +185,7 @@ const LibraryPage = () => {
           movies={ratedMovies} 
           type="rated" 
           onRemove={removeFromLibrary}
+          onMovieClick={handleMovieClick}
         />
       ) : (
         <div className="text-center py-8 text-gray-500 dark:text-gray-400">
@@ -180,6 +209,13 @@ const LibraryPage = () => {
           className="w-full"
         />
       </div>
+
+      <LibraryMovieModal
+        movie={selectedMovie}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        onRemove={removeFromLibrary}
+      />
     </div>
   );
 };

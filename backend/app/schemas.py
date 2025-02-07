@@ -15,6 +15,9 @@ class MovieBase(BaseModel):
     trailer_url: Optional[str] = None
     cast: Optional[List[str]] = None
     crew: Optional[List[str]] = None
+    content_rating: Optional[str] = None
+    mood_tags: Optional[List[str]] = None
+    streaming_platforms: Optional[List[str]] = None
     
     # New recommendation-related fields
     popularity_score: float = Field(default=0.0, ge=0)

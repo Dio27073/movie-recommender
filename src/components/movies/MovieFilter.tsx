@@ -5,6 +5,7 @@ import { MovieSearch } from './MovieSearch';
 import GenreFilter from './GenreFilter';
 import SortFilter from './SortFilter';
 import RangeFilter from './RangeFilter';
+import { ContentRatingFilter, MoodFilter, StreamingFilter } from './NewFilters';
 import { 
   Calendar, 
   Star, 
@@ -18,18 +19,24 @@ import {
 interface FilterTagProps {
   label: string;
   onRemove: () => void;
-  variant?: 'blue' | 'purple';
+  variant?: 'blue' | 'purple' | 'green' | 'orange' | 'red';
 }
 
 const FilterTag = ({ label, onRemove, variant = 'blue' }: FilterTagProps) => {
   const baseStyles = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium transition-colors duration-200';
   const variantStyles = {
     blue: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    purple: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+    purple: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+    green: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+    orange: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+    red: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
   };
   const hoverStyles = {
     blue: 'hover:text-blue-600 dark:hover:text-blue-300',
-    purple: 'hover:text-purple-600 dark:hover:text-purple-300'
+    purple: 'hover:text-purple-600 dark:hover:text-purple-300',
+    green: 'hover:text-green-600 dark:hover:text-green-300',
+    orange: 'hover:text-orange-600 dark:hover:text-orange-300',
+    red: 'hover:text-red-600 dark:hover:text-red-300'
   };
 
   return (
@@ -60,21 +67,44 @@ export const MovieFilter = ({
   onCastCrewSelect,
   selectedCastCrew,
   onMovieSelect,
+  selectedContentRatings = new Set(),
+  selectedMoods = new Set(),
+  selectedPlatforms = new Set(),
 }: MovieFilterProps) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { theme } = useTheme();
 
   const handleRemoveGenre = (genre: string) => {
-    onFilterChange('genres', { genre, checked: false });
+    onFilterChange('genres', { type: 'genres', genre, checked: false });
   };
 
   const handleRemoveCastCrew = (name: string) => {
     const newSet = new Set(Array.from(selectedCastCrew).filter(item => item !== name));
-    onFilterChange('castCrew', newSet);
+    onFilterChange('castCrew', { type: 'castCrew', value: newSet });
   };
 
-  const totalActiveFilters = selectedGenres.size + selectedCastCrew.size;
+  const handleRemoveContentRating = (rating: string) => {
+    const newSet = new Set(Array.from(selectedContentRatings).filter(item => item !== rating));
+    onFilterChange('contentRating', { type: 'contentRating', value: newSet });
+  };
+
+  const handleRemoveMood = (mood: string) => {
+    const newSet = new Set(Array.from(selectedMoods).filter(item => item !== mood));
+    onFilterChange('moodTags', { type: 'moodTags', value: newSet });
+  };
+
+  const handleRemovePlatform = (platform: string) => {
+    const newSet = new Set(Array.from(selectedPlatforms).filter(item => item !== platform));
+    onFilterChange('streamingPlatforms', { type: 'streamingPlatforms', value: newSet });
+  };
+
+  const totalActiveFilters = 
+    selectedGenres.size + 
+    selectedCastCrew.size + 
+    selectedContentRatings.size + 
+    selectedMoods.size + 
+    selectedPlatforms.size;
 
   return (
     <div className={`
@@ -177,13 +207,34 @@ export const MovieFilter = ({
               />
             </div>
 
+            <div className="z-40">
+              <ContentRatingFilter
+                selectedRatings={selectedContentRatings}
+                onChange={(value) => onFilterChange('contentRating', { type: 'contentRating', value })}
+              />
+            </div>
+
+            <div className="z-40">
+              <StreamingFilter
+                selectedPlatforms={selectedPlatforms}
+                onChange={(value) => onFilterChange('streamingPlatforms', { type: 'streamingPlatforms', value })}
+              />
+            </div>
+
+            <div className="z-40">
+              <MoodFilter
+                selectedMoods={selectedMoods}
+                onChange={(value) => onFilterChange('moodTags', { type: 'moodTags', value })}
+              />
+            </div>
+
             <RangeFilter
               label="Year Range"
               icon={<Calendar className="w-4 h-4" />}
               value={yearRange}
               min={minYear}
               max={maxYear}
-              onChange={(values) => onFilterChange('yearRange', values)}
+              onChange={(values) => onFilterChange('yearRange', { type: 'yearRange', value: values })}
             />
 
             <RangeFilter
@@ -193,13 +244,13 @@ export const MovieFilter = ({
               min={0}
               max={10}
               step={0.1}
-              onChange={(values) => onFilterChange('ratingRange', values)}
+              onChange={(values) => onFilterChange('ratingRange', { type: 'ratingRange', value: values })}
               showMinMax
             />
           </div>
 
           {/* Active Filters Section */}
-          {(selectedGenres.size > 0 || selectedCastCrew.size > 0) && (
+          {totalActiveFilters > 0 && (
             <div className={`
               space-y-4 pt-4 border-t transition-colors duration-200
               ${theme === 'light' ? 'border-gray-200' : 'border-gray-700'}
@@ -219,6 +270,30 @@ export const MovieFilter = ({
                     label={name}
                     onRemove={() => handleRemoveCastCrew(name)}
                     variant="purple"
+                  />
+                ))}
+                {Array.from(selectedContentRatings).map((rating) => (
+                  <FilterTag
+                    key={rating}
+                    label={rating}
+                    onRemove={() => handleRemoveContentRating(rating)}
+                    variant="red"
+                  />
+                ))}
+                {Array.from(selectedMoods).map((mood) => (
+                  <FilterTag
+                    key={mood}
+                    label={mood}
+                    onRemove={() => handleRemoveMood(mood)}
+                    variant="orange"
+                  />
+                ))}
+                {Array.from(selectedPlatforms).map((platform) => (
+                  <FilterTag
+                    key={platform}
+                    label={platform}
+                    onRemove={() => handleRemovePlatform(platform)}
+                    variant="green"
                   />
                 ))}
               </div>

@@ -255,12 +255,23 @@ class ApiService {
       method: 'DELETE'
     });
   }
-
+  
+  async getMovieDetails(movieId: number) {
+    const response = await this.request<{
+      items: Movie[];
+      total: number;
+      page: number;
+      total_pages: number;
+    }>(`/movies/?id=${movieId}`);
+    return response;
+  }
+  
   getStreamUrl(movieId: string): string {
     // Handle both IMDB and TMDB IDs
     const id = movieId.startsWith('tt') ? movieId : `tt${movieId}`;
     return `https://vidsrc.icu/embed/movie/${id}`;
   }
+
 }
 
 // Create a singleton instance

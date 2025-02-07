@@ -1,6 +1,6 @@
 import React from 'react';
 import { Star } from 'lucide-react';
-import { Movie } from '../../features/movies/types';
+import { Movie, LibraryMovie } from '../../features/movies/types';
 import { Modal } from './Modal';
 
 // Types
@@ -10,7 +10,7 @@ interface VideoPlayerProps {
 }
 
 interface MovieDetailsModalProps {
-  movie: Movie | null;
+  movie: Movie | LibraryMovie | null;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -92,6 +92,10 @@ const VideoPlayer = ({ url, title }: VideoPlayerProps) => {
   );
 };
 
+const isLibraryMovie = (movie: Movie | LibraryMovie): movie is LibraryMovie => {
+  return 'movie_id' in movie || 'watched_at' in movie || 'rating' in movie;
+};
+
 // Movie Rating Component
 const MovieRating = ({ rating, votes }: { rating: number | null | undefined; votes?: number }) => (
   <div className="flex items-center">
@@ -120,13 +124,8 @@ export const MovieDetailsModal = ({
 }: MovieDetailsModalProps) => {
   if (!movie) return null;
 
-  const castArray = Array.isArray(movie.cast) 
-    ? movie.cast 
-    : movie.cast?.split(',').filter(Boolean) || [];
-    
-  const crewArray = Array.isArray(movie.crew)
-    ? movie.crew
-    : movie.crew?.split(',').filter(Boolean) || [];
+  // Get the correct ID depending on the movie type
+  const movieId = isLibraryMovie(movie) ? movie.movie_id : movie.id;
 
   return (
     <Modal 
@@ -137,6 +136,11 @@ export const MovieDetailsModal = ({
       <div className="p-6">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">
           {movie.title}
+          {isLibraryMovie(movie) && movie.watched_at && (
+            <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
+              Watched on {new Date(movie.watched_at).toLocaleDateString()}
+            </span>
+          )}
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -152,7 +156,16 @@ export const MovieDetailsModal = ({
           {/* Movie Details */}
           <div className="space-y-4">
             <div className="flex items-center gap-4">
-              <MovieRating rating={movie.imdb_rating} votes={movie.imdb_votes} />
+              {isLibraryMovie(movie) && movie.rating ? (
+                <div className="flex items-center">
+                  <Star className="w-6 h-6 text-yellow-400 fill-current" />
+                  <span className="ml-1 text-lg font-semibold">
+                    {movie.rating}/5
+                  </span>
+                </div>
+              ) : (
+                <MovieRating rating={movie.imdb_rating} votes={movie.imdb_votes} />
+              )}
               <p className="text-gray-600 dark:text-gray-400">
                 Released: {movie.release_year}
               </p>
@@ -163,41 +176,52 @@ export const MovieDetailsModal = ({
             </p>
 
             {/* Genres */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                Genres
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {(Array.isArray(movie.genres) ? movie.genres : [movie.genres])
-                  .map((genre) => (
-                    <Badge key={genre}>{genre}</Badge>
+            {movie.genres?.length > 0 && (
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                  Genres
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {movie.genres.map((genre, index) => (
+                    <Badge key={`genre-${movieId}-${index}-${genre}`}>{genre}</Badge>
                   ))}
+                </div>
               </div>
-            </div>
+            )}
             
             {/* Cast & Crew */}
             <div className="space-y-4">
-              {castArray.length > 0 && (
+              {movie.cast && movie.cast.length > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
                     Cast
                   </h3>
                   <div className="flex flex-wrap gap-2">
-                    {castArray.map((actor) => (
-                      <Badge key={actor} variant="blue">{actor}</Badge>
+                    {movie.cast.map((actor, index) => (
+                      <Badge 
+                        key={`cast-${movieId}-${index}-${actor}`} 
+                        variant="blue"
+                      >
+                        {actor}
+                      </Badge>
                     ))}
                   </div>
                 </div>
               )}
 
-              {crewArray.length > 0 && (
+              {movie.crew && movie.crew.length > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
                     Directors
                   </h3>
                   <div className="flex flex-wrap gap-2">
-                    {crewArray.map((director) => (
-                      <Badge key={director} variant="purple">{director}</Badge>
+                    {movie.crew.map((director, index) => (
+                      <Badge 
+                        key={`crew-${movieId}-${index}-${director}`} 
+                        variant="purple"
+                      >
+                        {director}
+                      </Badge>
                     ))}
                   </div>
                 </div>

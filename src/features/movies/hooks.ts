@@ -51,7 +51,6 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
     
     if (filters.castCrew?.size) {
       Array.from(filters.castCrew).forEach(person => {
-        console.log('Adding cast/crew filter:', person);
         urlParams.append('cast_crew', person);
       });
     }
@@ -76,7 +75,24 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
         urlParams.append('search_type', filters.searchType);
       }
     }
-    console.log('Final URL params:', urlParams.toString());
+
+    if (filters.contentRating?.size) {
+      Array.from(filters.contentRating).forEach(rating => {
+        urlParams.append('content_rating', rating);
+      });
+    }
+
+    if (filters.moodTags?.size) {
+      Array.from(filters.moodTags).forEach(mood => {
+        urlParams.append('mood_tags', mood);
+      });
+    }
+
+    if (filters.streamingPlatforms?.size) {
+      Array.from(filters.streamingPlatforms).forEach(platform => {
+        urlParams.append('streaming_platforms', platform);
+      });
+    }
 
     return urlParams;
   }, [
@@ -87,9 +103,12 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
     filters.sort, 
     filters.castCrew,
     filters.searchQuery,
-    filters.searchType
+    filters.searchType,
+    filters.contentRating,
+    filters.moodTags,
+    filters.streamingPlatforms
   ]);
-
+  
   const fetchMovies = useCallback(async () => {
     setLoading(true);
     setError(null);

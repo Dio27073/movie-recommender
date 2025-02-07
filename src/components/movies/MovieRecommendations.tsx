@@ -30,6 +30,9 @@ const useMovieFilters = (onPageReset: () => void) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchType, setSearchType] = useState<SearchType>('title');
   const [selectedCastCrew, setSelectedCastCrew] = useState<Set<string>>(new Set());
+  const [selectedContentRatings, setSelectedContentRatings] = useState<Set<string>>(new Set());
+  const [selectedMoods, setSelectedMoods] = useState<Set<string>>(new Set());
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
 
   const debouncedYearRange = useDebounce(yearRange, 500);
   const debouncedRatingRange = useDebounce(ratingRange, 500);
@@ -39,7 +42,7 @@ const useMovieFilters = (onPageReset: () => void) => {
     
     switch (filterType) {
       case 'genres': {
-        const { genre, checked } = value as { genre: string; checked: boolean };
+        const { genre, checked } = value as { type: 'genres'; genre: string; checked: boolean };
         setSelectedGenres(prev => {
           const newGenres = new Set(prev);
           if (checked) {
@@ -52,21 +55,27 @@ const useMovieFilters = (onPageReset: () => void) => {
         break;
       }
       case 'yearRange':
-        setYearRange(value as [number, number]);
+        setYearRange((value as { type: 'yearRange'; value: [number, number] }).value);
         break;
       case 'ratingRange':
-        setRatingRange(value as [number, number]);
+        setRatingRange((value as { type: 'ratingRange'; value: [number, number] }).value);
         break;
       case 'sort':
-        setSortBy(value as SortOption);
+        setSortBy((value as { type: 'sort'; value: SortOption }).value);
         break;
-      case 'castCrew': {
-        console.log('Updating castCrew filter:', value); // Debug log
-        setSelectedCastCrew(value as Set<string>);
-        // Clear search query when adding cast/crew filter
+      case 'castCrew':
+        setSelectedCastCrew((value as { type: 'castCrew'; value: Set<string> }).value);
         setSearchQuery('');
         break;
-      }
+      case 'contentRating':
+        setSelectedContentRatings((value as { type: 'contentRating'; value: Set<string> }).value);
+        break;
+      case 'moodTags':
+        setSelectedMoods((value as { type: 'moodTags'; value: Set<string> }).value);
+        break;
+      case 'streamingPlatforms':
+        setSelectedPlatforms((value as { type: 'streamingPlatforms'; value: Set<string> }).value);
+        break;
     }
   }, [onPageReset]);
 
@@ -77,10 +86,9 @@ const useMovieFilters = (onPageReset: () => void) => {
   }, [onPageReset]);
 
   const handleCastCrewSelect = useCallback((name: string) => {
-    console.log('Adding cast/crew filter:', name); // Debug log
     const newSet = new Set(selectedCastCrew);
     newSet.add(name);
-    handleFilterChange('castCrew', newSet);
+    handleFilterChange('castCrew', { type: 'castCrew', value: newSet });
   }, [selectedCastCrew, handleFilterChange]);
 
   const filters = useMemo((): FilterParams => ({
@@ -91,7 +99,10 @@ const useMovieFilters = (onPageReset: () => void) => {
     view: viewType,
     castCrew: selectedCastCrew,
     searchQuery,
-    searchType
+    searchType,
+    contentRating: selectedContentRatings,
+    moodTags: selectedMoods,
+    streamingPlatforms: selectedPlatforms
   }), [
     selectedGenres, 
     debouncedYearRange, 
@@ -100,7 +111,10 @@ const useMovieFilters = (onPageReset: () => void) => {
     viewType, 
     selectedCastCrew, 
     searchQuery, 
-    searchType
+    searchType,
+    selectedContentRatings,
+    selectedMoods,
+    selectedPlatforms
   ]);
 
   return {
@@ -116,7 +130,10 @@ const useMovieFilters = (onPageReset: () => void) => {
     sortBy,
     searchQuery,
     searchType,
-    selectedCastCrew
+    selectedCastCrew,
+    selectedContentRatings,
+    selectedMoods,
+    selectedPlatforms
   };
 };
 
@@ -236,6 +253,9 @@ const MovieRecommendations = () => {
           onCastCrewSelect={handleCastCrewSelect}
           selectedCastCrew={selectedCastCrew}
           onMovieSelect={handleMovieClick}
+          selectedContentRatings={filters.contentRating}
+          selectedMoods={filters.moodTags}
+          selectedPlatforms={filters.streamingPlatforms}
         />
       </div>
   
