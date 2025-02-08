@@ -76,7 +76,7 @@ export const MovieFilter = ({
   const { theme } = useTheme();
 
   const handleRemoveGenre = (genre: string) => {
-    onFilterChange('genres', { type: 'genres', genre, checked: false });
+    onFilterChange('genre', { type: 'genre', genre, checked: false });
   };
 
   const handleRemoveCastCrew = (name: string) => {
@@ -203,7 +203,7 @@ export const MovieFilter = ({
             <div className="z-40">
               <SortFilter
                 sortBy={sortBy}
-                onSortChange={(value) => onFilterChange('sort', value)}
+                onSortChange={(type, value) => onFilterChange(type, value)}
               />
             </div>
 

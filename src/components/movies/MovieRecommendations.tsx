@@ -41,8 +41,8 @@ const useMovieFilters = (onPageReset: () => void) => {
     onPageReset();
     
     switch (filterType) {
-      case 'genres': {
-        const { genre, checked } = value as { type: 'genres'; genre: string; checked: boolean };
+      case 'genre': {
+        const { genre, checked } = value as { type: 'genre'; genre: string; checked: boolean };
         setSelectedGenres(prev => {
           const newGenres = new Set(prev);
           if (checked) {
@@ -92,7 +92,7 @@ const useMovieFilters = (onPageReset: () => void) => {
   }, [selectedCastCrew, handleFilterChange]);
 
   const filters = useMemo((): FilterParams => ({
-    genres: selectedGenres,
+    genre: selectedGenres,
     yearRange: debouncedYearRange,
     ratingRange: debouncedRatingRange,
     sort: sortBy,
@@ -253,7 +253,7 @@ const MovieRecommendations = () => {
           onCastCrewSelect={handleCastCrewSelect}
           selectedCastCrew={selectedCastCrew}
           onMovieSelect={handleMovieClick}
-          selectedContentRatings={filters.contentRating}
+                    selectedContentRatings={filters.contentRating}
           selectedMoods={filters.moodTags}
           selectedPlatforms={filters.streamingPlatforms}
         />

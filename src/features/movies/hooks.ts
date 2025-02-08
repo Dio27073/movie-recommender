@@ -43,8 +43,8 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
       per_page: '12',
     });
 
-    if (filters.genres?.size) {
-      Array.from(filters.genres).forEach(genre => {
+    if (filters.genre?.size) {
+      Array.from(filters.genre).forEach(genre => {
         urlParams.append('genres', genre);
       });
     }
@@ -97,7 +97,7 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
     return urlParams;
   }, [
     page, 
-    filters.genres, 
+    filters.genre, 
     filters.yearRange, 
     filters.ratingRange, 
     filters.sort, 

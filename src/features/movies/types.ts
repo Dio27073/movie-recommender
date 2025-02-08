@@ -62,7 +62,7 @@ export interface RecommendationFilters {
 
 // Filter Types
 export interface FilterParams {
-  genres?: Set<string>;
+  genre?: Set<string>;  // Changed from genres to genre
   yearRange?: [number, number];
   ratingRange?: [number, number];
   page?: number;
@@ -79,7 +79,8 @@ export interface FilterParams {
 
 export type FilterValue = 
   | { type: 'genre'; genre: string; checked: boolean }
-  | { type: 'range'; value: [number, number] }
+  | { type: 'yearRange'; value: [number, number] }
+  | { type: 'ratingRange'; value: [number, number] }
   | { type: 'view'; value: ViewType }
   | { type: 'sort'; value: SortOption }
   | { type: 'castCrew'; value: Set<string> }
@@ -94,6 +95,7 @@ export interface MovieCardProps {
 }
 
 export interface MovieFilterProps {
+  genres: string[];  // This is what the interface expects
   selectedGenres: Set<string>;
   yearRange: [number, number];
   ratingRange: [number, number];

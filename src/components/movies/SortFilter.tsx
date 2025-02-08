@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { SortOption } from '../../features/movies/types';
+import { SortOption, FilterValue, FilterParams } from '../../features/movies/types';
+import { useTheme } from '../../features/theme/themeContext';
 
 interface SortFilterProps {
   sortBy: SortOption;
-  onSortChange: (value: SortOption) => void;
+  onSortChange: (type: keyof FilterParams, value: FilterValue) => void;
 }
 
 const sortOptions: { value: SortOption; label: string }[] = [
@@ -19,6 +20,7 @@ const sortOptions: { value: SortOption; label: string }[] = [
 const SortFilter = ({ sortBy, onSortChange }: SortFilterProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { theme } = useTheme();
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -31,6 +33,11 @@ const SortFilter = ({ sortBy, onSortChange }: SortFilterProps) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const handleSort = (value: SortOption) => {
+    onSortChange('sort', { type: 'sort', value });
+    setIsOpen(false);
+  };
+
   const getButtonText = () => {
     const currentSort = sortOptions.find(option => option.value === sortBy);
     return currentSort ? currentSort.label : 'Sort By';
@@ -40,40 +47,51 @@ const SortFilter = ({ sortBy, onSortChange }: SortFilterProps) => {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center justify-between w-full px-4 py-2 
-                   bg-gray-700/50 dark:bg-gray-800/50 
-                   hover:bg-gray-700/70 dark:hover:bg-gray-800/70
-                   border border-gray-600/30 dark:border-gray-700/30
-                   rounded-lg text-gray-200 text-sm
-                   transition-colors duration-200"
+        className={`
+          w-full px-4 py-2 rounded-lg flex items-center justify-between
+          ${theme === 'light' 
+            ? 'bg-white hover:bg-gray-50 border border-gray-200' 
+            : 'bg-gray-800 hover:bg-gray-700 border border-gray-700'
+          }
+        `}
       >
-        <span className="mr-2">{getButtonText()}</span>
+        <div className="flex items-center space-x-2">
+          <span className={`${theme === 'light' ? 'text-gray-700' : 'text-gray-200'}`}>
+            {getButtonText()}
+          </span>
+        </div>
         {isOpen ? (
-          <ChevronUp className="w-4 h-4 text-gray-400" />
+          <ChevronUp className={`w-4 h-4 ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`} />
         ) : (
-          <ChevronDown className="w-4 h-4 text-gray-400" />
+          <ChevronDown className={`w-4 h-4 ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}`} />
         )}
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 w-64 mt-2 p-3
-                      bg-gray-700/95 dark:bg-gray-800/95 
-                      border border-gray-600/30 dark:border-gray-700/30
-                      rounded-lg shadow-lg backdrop-blur-sm">
-          <div className="space-y-2">
+        <div className={`
+          absolute z-50 mt-2 w-64 rounded-lg shadow-lg
+          ${theme === 'light' 
+            ? 'bg-white border border-gray-200' 
+            : 'bg-gray-800 border border-gray-700'
+          }
+        `}>
+          <div className="p-2 space-y-1">
             {sortOptions.map((option) => (
               <button
                 key={option.value}
-                onClick={() => {
-                  onSortChange(option.value);
-                  setIsOpen(false);
-                }}
-                className={`w-full text-left px-3 py-2 rounded-md text-sm
-                          transition-colors duration-200
-                          ${sortBy === option.value 
-                            ? 'bg-blue-500/20 text-blue-400' 
-                            : 'text-gray-200 hover:bg-gray-600/50'
-                          }`}
+                onClick={() => handleSort(option.value)}
+                className={`
+                  w-full text-left px-3 py-2 rounded-md text-sm
+                  transition-colors duration-200
+                  ${sortBy === option.value
+                    ? theme === 'light'
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'bg-blue-900/30 text-blue-300'
+                    : theme === 'light'
+                      ? 'text-gray-700 hover:bg-gray-100'
+                      : 'text-gray-200 hover:bg-gray-700'
+                  }
+                `}
               >
                 {option.label}
               </button>
