@@ -158,6 +158,8 @@ class ApiService {
     min_year?: number;
     genres?: string[];
     page?: number;
+    streaming_platforms?: string;  // Add this
+    mood_tags?: string;        
   } = {}): Promise<MovieResponse> {
     const queryParams = new URLSearchParams();
 

@@ -193,7 +193,7 @@ export const MovieFilter = ({
         <>
           {/* Filter Controls Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 relative">
-            <div className="z-40">
+            <div className="z-50">
               <GenreFilter
                 selectedGenres={selectedGenres}
                 onFilterChange={onFilterChange}
@@ -207,21 +207,21 @@ export const MovieFilter = ({
               />
             </div>
 
-            <div className="z-40">
+            <div className="z-30">
               <ContentRatingFilter
                 selectedRatings={selectedContentRatings}
                 onChange={(value) => onFilterChange('contentRating', { type: 'contentRating', value })}
               />
             </div>
 
-            <div className="z-40">
+            <div className="z-20">
               <StreamingFilter
                 selectedPlatforms={selectedPlatforms}
                 onChange={(value) => onFilterChange('streamingPlatforms', { type: 'streamingPlatforms', value })}
               />
             </div>
 
-            <div className="z-40">
+            <div className="z-10">
               <MoodFilter
                 selectedMoods={selectedMoods}
                 onChange={(value) => onFilterChange('moodTags', { type: 'moodTags', value })}

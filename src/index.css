@@ -27,9 +27,26 @@
 }
 
 input[type="checkbox"] {
-  background-color: #c9e6ec; /* or any dark color you prefer */
+  background-color: #ffffff; /* for light theme */
   appearance: none;
   -webkit-appearance: none;
+}
+
+/* For dark theme */
+.dark input[type="checkbox"] {
+  background-color: #1f2937; /* or any dark color you prefer */
+}
+
+/* When checked */
+input[type="checkbox"]:checked {
+  background-color: #1a2337; 
+  border-color: #2563eb;
+}
+
+/* When checked */
+.dark input[type="checkbox"]:checked {
+  background-color: #4e73c2; 
+  border-color: #2563eb;
 }
 
 .animate-marquee {

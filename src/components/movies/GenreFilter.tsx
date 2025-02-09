@@ -87,11 +87,7 @@ const GenreFilter = ({ selectedGenres, onFilterChange }: GenreFilterProps) => {
                     onChange={(e) => handleGenreChange(genre, e.target.checked)}
                     className={`
                       w-4 h-4 rounded transition-colors
-                      ${theme === 'light'
-                        ? 'border-gray-300 text-blue-600 focus:ring-blue-500'
-                        : 'border-gray-600 text-blue-500 focus:ring-blue-500 bg-gray-800'
-                      }
-                    `}
+                  `}
                   />
                   <span className={`
                     text-sm whitespace-nowrap transition-colors duration-200

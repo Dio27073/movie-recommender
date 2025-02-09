@@ -11,23 +11,26 @@ import { useNavigate } from 'react-router-dom'; // Add this import
 const HomePage = () => {
   const [trendingMovies, setTrendingMovies] = useState<Movie[]>([]);
   const [recentMovies, setRecentMovies] = useState<Movie[]>([]);
+  const [netflixMovies, setNetflixMovies] = useState<Movie[]>([]);
+  const [huluMovies, setHuluMovies] = useState<Movie[]>([]);
+  const [funnyMovies, setFunnyMovies] = useState<Movie[]>([]);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const { isAuthenticated } = useAuth(); // Add this
-  const navigate = useNavigate(); // Add this
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchMovies = async () => {
       try {
-        // Fetch trending movies (sorted by rating)
+        // Fetch trending movies
         const trendingResponse = await apiService.getMovies({
           sort: 'imdb_rating_desc',
           per_page: 30
         });
         setTrendingMovies(trendingResponse.items || []);
 
-        // Fetch recent releases (sorted by release date, excluding future releases)
+        // Fetch recent releases
         const currentDate = new Date();
         const recentResponse = await apiService.getMovies({
           sort: 'release_date_desc',
@@ -35,6 +38,31 @@ const HomePage = () => {
           per_page: 30
         });
         setRecentMovies(recentResponse.items || []);
+
+        // Fetch Netflix movies using your existing filter parameters
+        const netflixResponse = await apiService.getMovies({
+          streaming_platforms: 'Netflix',
+          sort: 'imdb_rating_desc',
+          per_page: 30
+        });
+        setNetflixMovies(netflixResponse.items || []);
+
+        // Fetch Hulu movies using your existing filter parameters
+        const huluResponse = await apiService.getMovies({
+          streaming_platforms: Array.from(new Set(['Hulu'])).join(','),
+          sort: 'imdb_rating_desc',
+          per_page: 30
+        });
+        setHuluMovies(huluResponse.items || []);
+
+        // Fetch funny movies using your existing filter parameters
+        const funnyResponse = await apiService.getMovies({
+          mood_tags: Array.from(new Set(['Funny'])).join(','),
+          sort: 'imdb_rating_desc',
+          per_page: 30
+        });
+        setFunnyMovies(funnyResponse.items || []);
+
       } catch (error) {
         console.error('Error fetching movies:', error);
       } finally {
@@ -107,13 +135,28 @@ const HomePage = () => {
         ) : (
           <>
             <MovieCarousel
-              title="Trending Now"
+              title="Popular Movies"
               movies={trendingMovies}
               onMovieClick={handleMovieClick}
             />
             <MovieCarousel
               title="Recent Releases"
               movies={recentMovies}
+              onMovieClick={handleMovieClick}
+            />
+            <MovieCarousel
+              title="Streaming on Netflix"
+              movies={netflixMovies}
+              onMovieClick={handleMovieClick}
+            />
+            <MovieCarousel
+              title="Streaming on Hulu"
+              movies={huluMovies}
+              onMovieClick={handleMovieClick}
+            />
+            <MovieCarousel
+              title="Funny Movies"
+              movies={funnyMovies}
               onMovieClick={handleMovieClick}
             />
           </>

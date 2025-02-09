@@ -77,6 +77,17 @@ export interface FilterParams {
   streamingPlatforms?: Set<string>;
 }
 
+export interface MovieApiParams {
+  sort?: string;
+  per_page?: number;
+  max_year?: number;
+  min_year?: number;
+  genres?: string[];
+  page?: number;
+  streaming_platforms?: string;  // For Netflix, Hulu, etc.
+  mood_tags?: string;           // For Funny, etc.
+}
+
 export type FilterValue = 
   | { type: 'genre'; genre: string; checked: boolean }
   | { type: 'yearRange'; value: [number, number] }

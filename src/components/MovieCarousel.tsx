@@ -1,7 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Movie } from '../features/movies/types';
-import { MovieCard } from './movies/MovieCard';
 import HomeMovieCard from './movies/HomeMovieCard';
 
 

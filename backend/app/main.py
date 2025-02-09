@@ -156,7 +156,47 @@ async def fetch_movie_cast_crew(tmdb_id: int) -> dict:
         print(f"Error fetching cast/crew for movie {tmdb_id}: {str(e)}")
     return {"cast": [], "crew": []}
 
-# User registration endpoint
+async def fetch_streaming_platforms(tmdb_id: int, region: str = "US") -> list[str]:
+    """Fetch accurate streaming platform data from TMDB."""
+    try:
+        # Add rate limiting
+        time.sleep(0.25)  # 250ms delay between requests
+        
+        response = requests.get(
+            f"{TMDB_BASE_URL}/movie/{tmdb_id}/watch/providers",
+            params={"api_key": TMDB_API_KEY}
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            results = data.get("results", {})
+            region_data = results.get(region, {})
+            
+            # Get flatrate (subscription) streaming services
+            streaming_platforms = []
+            if "flatrate" in region_data:
+                for provider in region_data["flatrate"]:
+                    provider_name = provider.get("provider_name")
+                    # Map TMDB provider names to your platform names
+                    platform_mapping = {
+                        "Netflix": "Netflix",
+                        "Amazon Prime Video": "Prime Video",
+                        "Disney Plus": "Disney+",
+                        "Hulu": "Hulu",
+                        "HBO Max": "HBO Max",
+                        "Max": "HBO Max",  # Add this line
+                        "Apple TV Plus": "Apple TV+",
+                        "Peacock": "Peacock"
+                    }
+                    if provider_name in platform_mapping:
+                        streaming_platforms.append(platform_mapping[provider_name])
+            
+            return list(set(streaming_platforms))  # Remove duplicates
+            
+    except Exception as e:
+        print(f"Error fetching streaming platforms for movie {tmdb_id}: {str(e)}")
+        return []
+
 @app.on_event("startup")
 async def startup_event():
     db = SessionLocal()
@@ -304,34 +344,15 @@ async def startup_event():
                                     mood_tags.extend(genre_mood_mapping[genre])
                             mood_tags = list(set(mood_tags))  # Remove duplicates
 
-                            # Set streaming platforms based on various factors
-                            streaming_platforms = []
-                            
-                            # Modern releases are more likely to be on multiple platforms
-                            if release_year >= 2020:
-                                if movie_data.get("popularity", 0) > 50:  # Popular recent movies
-                                    streaming_platforms.extend(["Netflix", "Prime Video", "Disney+", "Hulu"])
+                            # Fetch streaming platforms using TMDB Watch Providers API
+                            streaming_platforms = await fetch_streaming_platforms(movie_data["id"])
+                            if not streaming_platforms:  # Fallback if no streaming data found
+                                if release_year >= 2020:
+                                    streaming_platforms = ["Prime Video"]  # Conservative fallback
+                                elif "Animation" in genres or "Family" in genres:
+                                    streaming_platforms = ["Disney+"]
                                 else:
-                                    streaming_platforms.extend(["Netflix", "Prime Video"])
-                            elif release_year >= 2015:
-                                if movie_data.get("popularity", 0) > 50:
-                                    streaming_platforms.extend(["Netflix", "Prime Video", "Hulu"])
-                                else:
-                                    streaming_platforms.extend(["Prime Video", "Netflix"])
-                            elif release_year >= 2000:
-                                streaming_platforms.extend(["Prime Video", "Netflix"])
-                            else:
-                                streaming_platforms.append("Prime Video")  # Older movies often on Prime
-
-                            # Add Disney+ for appropriate content
-                            if "Animation" in genres or "Family" in genres:
-                                streaming_platforms.append("Disney+")
-
-                            # Add special cases
-                            if content_rating in ["G", "PG"]:
-                                streaming_platforms.append("Disney+")
-                            
-                            streaming_platforms = list(set(streaming_platforms))  # Remove duplicates
+                                    streaming_platforms = []
                             
                             # Create movie record
                             movie = models.Movie(
