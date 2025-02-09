@@ -18,7 +18,6 @@ pandas>=1.3.0
 # Frontend Dependencies
 react-intersection-observer          # For infinite scroll
 recharts                            # For visualization of recommendation stats
-heroicons/react                    # For icons
 framer-motion                       # For animations
 date-fns                            # For date manipulation
 react-hot-toast                     # For notifications
