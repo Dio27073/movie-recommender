@@ -30,7 +30,11 @@ recommender = MovieRecommender()
 # CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "https://movie-recommender-two-zeta.vercel.app",
+        # You can also add the other domains for testing if needed
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
