@@ -86,6 +86,7 @@ export interface MovieApiParams {
   page?: number;
   streaming_platforms?: string;  // For Netflix, Hulu, etc.
   mood_tags?: string;           // For Funny, etc.
+  release_date_lte?: string;  // Add this line
 }
 
 export type FilterValue = 

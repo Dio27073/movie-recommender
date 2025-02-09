@@ -24,17 +24,19 @@ const HomePage = () => {
     const fetchMovies = async () => {
       try {
         // Fetch trending movies
-        const trendingResponse = await apiService.getMovies({
-          sort: 'imdb_rating_desc',
+        const trendingResponse = await apiService.getTrendingMovies({
+          time_window: 'week',
           per_page: 30
         });
         setTrendingMovies(trendingResponse.items || []);
 
         // Fetch recent releases
         const currentDate = new Date();
+        const formattedDate = currentDate.toISOString().split('T')[0];
+
         const recentResponse = await apiService.getMovies({
           sort: 'release_date_desc',
-          max_year: currentDate.getFullYear(),
+          release_date_lte: formattedDate,  // Only movies released on or before today
           per_page: 30
         });
         setRecentMovies(recentResponse.items || []);
@@ -135,7 +137,7 @@ const HomePage = () => {
         ) : (
           <>
             <MovieCarousel
-              title="Popular Movies"
+              title="Trending Movies"
               movies={trendingMovies}
               onMovieClick={handleMovieClick}
             />

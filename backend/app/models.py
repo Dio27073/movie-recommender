@@ -70,6 +70,7 @@ class Movie(Base):
     genres = Column(String(255), nullable=True)
     release_year = Column(Integer, nullable=False)
     imageUrl = Column(String(500), nullable=True)
+    release_date = Column(DateTime, nullable=True)  # Add this line
     
     # IMDB specific fields
     imdb_id = Column(String(20), unique=True, nullable=True)

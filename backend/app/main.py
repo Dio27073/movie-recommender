@@ -360,6 +360,7 @@ async def startup_event():
                                 description=movie_data["overview"],
                                 genres=",".join(genres),
                                 release_year=release_year,
+                                release_date=datetime.strptime(movie_data["release_date"], '%Y-%m-%d'),  # Add this line
                                 average_rating=converted_rating,
                                 imageUrl=f"{TMDB_IMAGE_BASE_URL}{movie_data['poster_path']}",
                                 imdb_id=imdb_data["imdb_id"] if imdb_data else None,
@@ -473,6 +474,7 @@ def get_movies(
     content_rating: str = None,
     mood_tags: str = None,
     streaming_platforms: str = None,
+    release_date_lte: str = None,  # Add this parameter
     db: Session = Depends(get_db)
     ):
     
@@ -539,14 +541,18 @@ def get_movies(
         elif sort == "imdb_rating_asc":
             query = query.order_by(asc(models.Movie.imdb_rating))
         elif sort == "release_date_desc":
-            query = query.order_by(desc(models.Movie.release_year))
+            query = query.order_by(desc(models.Movie.release_date))
         elif sort == "release_date_asc":
-            query = query.order_by(asc(models.Movie.release_year))
+            query = query.order_by(asc(models.Movie.release_date))
         elif sort == "title_asc":
             query = query.order_by(asc(models.Movie.title))
         elif sort == "title_desc":
             query = query.order_by(desc(models.Movie.title))
     
+    if release_date_lte:
+        release_date = datetime.strptime(release_date_lte, '%Y-%m-%d')
+        query = query.filter(models.Movie.release_date <= release_date)
+
     total_movies = query.count()
     total_pages = (total_movies + per_page - 1) // per_page
     movies = query.offset(offset).limit(per_page).all()
@@ -919,6 +925,68 @@ async def add_to_library(
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to add movie to library")
     
+@app.get("/movies/trending/", response_model=schemas.PaginatedMovieResponse)
+async def get_trending_movies(
+    time_window: str = "month",  # or "day"
+    page: int = 1,
+    per_page: int = 30,
+    db: Session = Depends(get_db)
+):
+    try:
+        # Call TMDB API for trending movies
+        response = requests.get(
+            f"{TMDB_BASE_URL}/trending/movie/{time_window}",
+            params={
+                "api_key": TMDB_API_KEY,
+                "page": page
+            }
+        )
+        response.raise_for_status()
+        tmdb_data = response.json()
+        
+        # Get TMDB IDs of trending movies
+        tmdb_movies = tmdb_data.get("results", [])
+        
+        # Get corresponding movies from our database
+        movie_list = []
+        for tmdb_movie in tmdb_movies[:per_page]:
+            # Try to find movie by TMDB ID first
+            movie = db.query(models.Movie).filter(
+                models.Movie.title == tmdb_movie["title"],
+                models.Movie.release_year == int(tmdb_movie["release_date"][:4])
+            ).first()
+            
+            if movie:
+                movie_dict = {
+                    "id": movie.id,
+                    "title": movie.title,
+                    "description": movie.description,
+                    "release_year": movie.release_year,
+                    "average_rating": movie.average_rating,
+                    "imageUrl": movie.imageUrl,
+                    "genres": movie.genres.split(",") if movie.genres else [],
+                    "imdb_id": movie.imdb_id,
+                    "imdb_rating": movie.imdb_rating,
+                    "imdb_votes": movie.imdb_votes,
+                    "trailer_url": movie.trailer_url,
+                    "cast": movie.cast.split(",") if movie.cast else [],
+                    "crew": movie.crew.split(",") if movie.crew else []
+                }
+                movie_list.append(movie_dict)
+        
+        return {
+            "items": movie_list,
+            "total": len(movie_list),
+            "page": page,
+            "total_pages": tmdb_data.get("total_pages", 1),
+            "has_next": page < tmdb_data.get("total_pages", 1),
+            "has_prev": page > 1
+        }
+        
+    except Exception as e:
+        print(f"Error fetching trending movies: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch trending movies")
+    
 @app.delete("/api/movies/{movie_id}/view")
 async def remove_from_library(
     movie_id: int,
@@ -940,3 +1008,5 @@ async def remove_from_library(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to remove movie from library")
+    
+    

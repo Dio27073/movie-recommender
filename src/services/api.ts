@@ -159,7 +159,8 @@ class ApiService {
     genres?: string[];
     page?: number;
     streaming_platforms?: string;  // Add this
-    mood_tags?: string;        
+    mood_tags?: string; 
+    release_date_lte?: string;  // Add this line       
   } = {}): Promise<MovieResponse> {
     const queryParams = new URLSearchParams();
 
@@ -173,7 +174,7 @@ class ApiService {
       }
     });
 
-    return this.request<MovieResponse>(`/movies/?${queryParams.toString()}`);
+  return this.request<MovieResponse>(`/movies/?${queryParams.toString()}`);
   }
 
   async recordMovieView(
@@ -272,6 +273,22 @@ class ApiService {
     // Handle both IMDB and TMDB IDs
     const id = movieId.startsWith('tt') ? movieId : `tt${movieId}`;
     return `https://vidsrc.icu/embed/movie/${id}`;
+  }
+
+  async getTrendingMovies(params: {
+    time_window?: 'month' | 'week';
+    page?: number;
+    per_page?: number;
+  } = {}): Promise<MovieResponse> {
+    const queryParams = new URLSearchParams();
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) {
+        queryParams.append(key, value.toString());
+      }
+    });
+  
+    return this.request<MovieResponse>(`/movies/trending/?${queryParams.toString()}`);
   }
 
 }
