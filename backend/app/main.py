@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 
 from . import models, schemas
-from .database import SessionLocal, engine, get_db
+from .database import SessionLocal, engine, Base, get_db
 from .recommender.engine import router as recommender_router, MovieRecommender
 from .auth_utils import get_current_active_user
 from .routers.auth import router as auth_router
@@ -19,6 +19,8 @@ from .routers.auth import router as auth_router
 # Load environment variables
 load_dotenv()
 
+TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+OMDB_API_KEY = os.getenv("OMDB_API_KEY")
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
 
@@ -52,10 +54,6 @@ app.include_router(
     prefix="/auth",
     tags=["authentication"]
 )
-
-# API Keys
-TMDB_API_KEY = os.getenv("TMDB_API_KEY", "55975ac268099c9f0957d3aafb5eeae8")
-OMDB_API_KEY = os.getenv("OMDB_API_KEY", "f8ed048e")  # You'll need to get this from omdbapi.com
 
 # API Base URLs
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
@@ -1013,4 +1011,7 @@ async def remove_from_library(
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to remove movie from library")
     
-    
+    if __name__ == "__main__":
+        import uvicorn
+        port = int(os.getenv("PORT", "8000"))
+        uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)
