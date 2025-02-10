@@ -114,7 +114,7 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
     setError(null);
     
     try {
-      const url = `http://localhost:8000/movies/?${params}`;
+      const url = `${import.meta.env.VITE_API_URL}/movies/?${params}`;
       console.log('Fetching movies with URL:', url); // Add this log
       const response = await fetch(url);
       

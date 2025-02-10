@@ -10,7 +10,7 @@ import {
 
 import { AuthResponse, LoginCredentials, RegisterCredentials, User } from './authService';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 interface MovieResponse {
   items: Movie[];
