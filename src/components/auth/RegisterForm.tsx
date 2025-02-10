@@ -2,11 +2,13 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import authService from '../../services/authService';
-import { useAuth } from '../../context/AuthContext';
+
+// import { useAuth } from '../../context/AuthContext';
+
 const RegisterForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth();
+  // const { login } = useAuth();
   const from = location.state?.from || '/';
   const [formData, setFormData] = useState({
     email: '',

@@ -1,10 +1,8 @@
 import {
   Movie,
-  MovieCreate,
   Rating,
   RatingResponse,
   ApiError,
-  MovieRecommendation,
   RecommendationResponse,
   RecommendationFilters,
   UserPreferences

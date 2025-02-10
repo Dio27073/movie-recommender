@@ -2,7 +2,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
-import { BookMarked, Home, User, Film } from 'lucide-react';
+import { BookMarked } from 'lucide-react';
 
 const Navbar = () => {
   const { isAuthenticated, logout } = useAuth();

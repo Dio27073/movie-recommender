@@ -1,5 +1,5 @@
 import api from './api';
-import { Movie, MovieRecommendation, RecommendationResponse } from '../features/movies/types';
+import { Movie, RecommendationResponse } from '../features/movies/types';
 
 export interface RecommendationFilters {
   strategy?: 'hybrid' | 'content' | 'collaborative';

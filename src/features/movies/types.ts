@@ -18,7 +18,7 @@ export interface Movie {
   id: number;
   title: string;
   description?: string;
-  genres: string[];  // Changed to always be string[]
+  genres: string[] | string;  // Changed to always be string[]
   release_year: number;
   average_rating: number;
   imageUrl?: string;
@@ -112,6 +112,7 @@ export interface MovieFilterProps {
   yearRange: [number, number];
   ratingRange: [number, number];
   sortBy: SortOption;
+  viewType: ViewType;  // Add this line
   onFilterChange: (filterType: keyof FilterParams, value: FilterValue) => void;
   minYear: number;
   maxYear: number;

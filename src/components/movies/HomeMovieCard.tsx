@@ -1,4 +1,3 @@
-import React from 'react';
 import { Movie } from '../../features/movies/types';
 
 interface HomeMovieCardProps {

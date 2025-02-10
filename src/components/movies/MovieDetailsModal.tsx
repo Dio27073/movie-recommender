@@ -116,6 +116,13 @@ const MovieRating = ({ rating, votes }: { rating: number | null | undefined; vot
   </div>
 );
 
+const normalizeGenres = (genres: string | string[]): string[] => {
+  if (Array.isArray(genres)) {
+    return genres;
+  }
+  return genres.split(',').map(g => g.trim());
+};
+
 // Main MovieDetailsModal Component
 export const MovieDetailsModal = ({
   movie,
@@ -176,14 +183,18 @@ export const MovieDetailsModal = ({
             </p>
 
             {/* Genres */}
-            {movie.genres?.length > 0 && (
+            {movie.genres && (
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
                   Genres
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {movie.genres.map((genre, index) => (
-                    <Badge key={`genre-${movieId}-${index}-${genre}`}>{genre}</Badge>
+                  {normalizeGenres(movie.genres).map((genre: string, index: number) => (
+                    <Badge 
+                      key={`genre-${movieId}-${index}-${genre}`}
+                    >
+                      {genre}
+                    </Badge>
                   ))}
                 </div>
               </div>

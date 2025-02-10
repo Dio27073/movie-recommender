@@ -65,8 +65,8 @@ export const MovieDetails: React.FC = () => {
         try {
           setLoading(true);
           const id = location.pathname.split('/').pop();
-          const response = await apiService.getMovie(id!);
-          setMovieData(response);
+          const response = await apiService.getMovieDetails(parseInt(id!));
+          setMovieData(response.items[0]);
         } catch (err) {
           setError(err instanceof Error ? err.message : 'Failed to fetch movie details');
         } finally {
