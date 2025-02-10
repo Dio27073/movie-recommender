@@ -1,9 +1,0 @@
-''' #Frontend Dependencies
-react-intersection-observer          # For infinite scroll
-recharts                            # For visualization of recommendation stats
-framer-motion                       # For animations
-date-fns                            # For date manipulation
-react-hot-toast                     # For notifications
-tailwind-merge                      # For combining Tailwind classes
-react-use                          # Useful React hooks
-'''
