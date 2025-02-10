@@ -1012,6 +1012,6 @@ async def remove_from_library(
         raise HTTPException(status_code=500, detail="Failed to remove movie from library")
     
     if __name__ == "__main__":
+        port = int(os.getenv("PORT", 10000))
         import uvicorn
-        port = int(os.getenv("PORT", "8000"))
-        uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)
+        uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
