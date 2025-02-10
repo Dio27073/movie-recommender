@@ -35,6 +35,11 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "https://movie-recommender-two-zeta.vercel.app",
+        "https://movie-recommender-two-zeta.vercel.app/",
+        "https://movie-recommender-git-main-dio27073s-projects.vercel.app/",
+        "https://movie-recommender-git-main-dio27073s-projects.vercel.app",
+        "https://movie-recommender-mpu1s9qgh-dio27073s-projects.vercel.app",
+
         # You can also add the other domains for testing if needed
     ],
     allow_credentials=True,
@@ -201,7 +206,19 @@ async def fetch_streaming_platforms(tmdb_id: int, region: str = "US") -> list[st
 
 @app.on_event("startup")
 async def startup_event():
-    db = SessionLocal()
+    retries = 5
+    for i in range(retries):
+        try:
+            db = SessionLocal()
+            # Test the connection
+            db.execute("SELECT 1")
+            break
+        except Exception as e:
+            if i == retries - 1:
+                print(f"Failed to initialize database after {retries} attempts")
+                raise
+            print(f"Database connection attempt {i + 1} failed, retrying...")
+            time.sleep(5)
     try:
         # Initialize movies if database is empty
         if db.query(models.Movie).count() == 0:
