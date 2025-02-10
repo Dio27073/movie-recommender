@@ -3,7 +3,6 @@ import { Star, Clock, BookMarked, Trash2 } from "lucide-react";
 import { Tabs } from '../components/ui/tabs';
 import { LibraryMovie } from '../features/movies/types';
 import { useLibrary } from '../features/movies/hooks/useLibrary';
-import { MovieDetailsModal } from '../components/movies/MovieDetailsModal';
 import { LibraryMovieModal } from '../components/movies/LibraryMovieModal';
 
 // RemoveButton Component

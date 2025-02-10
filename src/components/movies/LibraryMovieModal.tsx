@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Star, Clock, Calendar, Film, Award, ThumbsUp } from 'lucide-react';
+import { Star, Clock, Calendar, Award } from 'lucide-react';
 import { Modal } from './Modal';
 import { LibraryMovie } from '../../features/movies/types';
 import api from '../../services/api';
@@ -41,13 +41,20 @@ const VideoSection = ({ url, title }: { url: string; title: string }) => {
   );
 };
 
+const normalizeGenres = (genres: string | string[]): string[] => {
+  if (Array.isArray(genres)) {
+    return genres;
+  }
+  return genres.split(',').map(g => g.trim());
+};
+
 export const LibraryMovieModal = ({
   movie,
   isOpen,
   onClose,
   onRemove
 }: LibraryMovieModalProps) => {
-  const [isLoading, setIsLoading] = useState(false);
+  const [, setIsLoading] = useState(false);
   const [fullDetails, setFullDetails] = useState<LibraryMovie | null>(null);
 
   useEffect(() => {
@@ -166,17 +173,18 @@ export const LibraryMovieModal = ({
             )}
 
             {/* Genres */}
-            {displayMovie.genres?.length > 0 && (
+            {displayMovie.genres && (
               <div className="space-y-2">
                 <h3 className="text-lg font-semibold">Genres</h3>
                 <div className="flex flex-wrap gap-2">
-                  {displayMovie.genres.map((genre, index) => (
-                    <Badge key={`${genre}-${index}`}>{genre}</Badge>
+                  {normalizeGenres(displayMovie.genres).map((genre: string, index: number) => (
+                    <Badge key={`${genre}-${index}`}>
+                      {genre}
+                    </Badge>
                   ))}
                 </div>
               </div>
             )}
-
             {/* Cast */}
             {Array.isArray(displayMovie.cast) && displayMovie.cast.length > 0 && (
               <div className="space-y-2">
