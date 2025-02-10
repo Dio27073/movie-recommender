@@ -2,6 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import QueuePool
+from sqlalchemy import text  
 import os
 import time
 
@@ -34,13 +35,13 @@ def get_db_with_retry(retries=5, backoff=1):
     for attempt in range(retries):
         try:
             db = SessionLocal()
-            # Test the connection
-            db.execute("SELECT 1")
+            # Test the connection with proper SQL text
+            db.execute(text("SELECT 1"))
             return db
         except Exception as e:
             if attempt == retries - 1:  # Last attempt
                 raise Exception(f"Failed to connect to database after {retries} attempts: {str(e)}")
-            time.sleep(backoff * (attempt + 1))  # Exponential backoff
+            time.sleep(backoff * (attempt + 1))
             continue
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

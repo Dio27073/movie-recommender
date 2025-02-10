@@ -9,7 +9,7 @@ import requests
 import os
 from dotenv import load_dotenv
 from datetime import datetime
-
+from sqlalchemy import text 
 from . import models, schemas
 from .database import SessionLocal, engine, Base, get_db
 from .recommender.engine import router as recommender_router, MovieRecommender
@@ -210,8 +210,8 @@ async def startup_event():
     for i in range(retries):
         try:
             db = SessionLocal()
-            # Test the connection
-            db.execute("SELECT 1")
+            # Test the connection with proper SQL text
+            db.execute(text("SELECT 1"))
             break
         except Exception as e:
             if i == retries - 1:
@@ -1028,7 +1028,7 @@ async def remove_from_library(
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to remove movie from library")
     
-    if __name__ == "__main__":
-        port = int(os.getenv("PORT", 10000))
-        import uvicorn
-        uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 10000))
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=port)
