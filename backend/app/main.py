@@ -6,6 +6,7 @@ from typing import List, Optional
 import time
 from sqlalchemy import or_, desc, asc
 import requests
+import uvicorn
 import os
 from dotenv import load_dotenv
 from datetime import datetime
@@ -1027,3 +1028,10 @@ async def remove_from_library(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to remove movie from library")
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("app.main:app", 
+                host="0.0.0.0", 
+                port=port,
+                reload=False)
