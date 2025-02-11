@@ -1,5 +1,5 @@
 fastapi==0.109.0
-uvicorn==0.27.0
+uvicorn[standard]==0.27.0
 sqlalchemy==2.0.25
 pydantic==2.5.3
 pydantic-extra-types==2.3.0

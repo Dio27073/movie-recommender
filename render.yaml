@@ -1,12 +1,14 @@
 services:
   - type: web
-    name: movie-recommender-api
+    name: movie-recommender-backend
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 4
     envVars:
+      - key: PORT
+        value: 10000
       - key: PYTHON_VERSION
-        value: 3.11.8
+        value: 3.11.0
       - key: TMDB_API_KEY
         sync: false
       - key: OMDB_API_KEY
