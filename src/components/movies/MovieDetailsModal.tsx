@@ -30,7 +30,7 @@ const getYouTubeEmbedUrl = (url: string): string | null => {
 // Badge Component
 const Badge = ({ children, variant = 'default' }: BadgeProps) => {
   const variantStyles = {
-    default: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
+    default: 'bg-light-secondary dark:bg-dark-secondary text-light-text dark:text-dark-text',
     blue: 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
     purple: 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
   };
@@ -140,23 +140,23 @@ export const MovieDetailsModal = ({
       onClose={onClose}
       className="w-full max-w-4xl mx-4"
     >
-      <div className="p-6">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">
+      <div className="p-6 bg-light-primary dark:bg-dark-primary">
+        <h2 className="text-2xl font-bold text-light-text dark:text-dark-text mb-6">
           {movie.title}
           {isLibraryMovie(movie) && movie.watched_at && (
-            <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
+            <span className="text-sm font-normal text-light-text/60 dark:text-dark-text/60 ml-2">
               Watched on {new Date(movie.watched_at).toLocaleDateString()}
             </span>
           )}
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Movie Poster */}
-          <div>
+          {/* Movie Poster - Updated container and image styles */}
+          <div className="relative h-full min-h-[400px]">
             <img
               src={movie.imageUrl || '/api/placeholder/400/600'}
               alt={movie.title}
-              className="w-full h-96 object-cover rounded-lg"
+              className="w-full h-full object-cover rounded-lg absolute inset-0"
             />
           </div>
 

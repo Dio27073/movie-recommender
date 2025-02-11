@@ -44,9 +44,7 @@ function App() {
                   
                   {/* Protected routes */}
                   <Route path="/browse" element={
-                    <ProtectedRoute>
                       <MovieRecommendations />
-                    </ProtectedRoute>
                   } />
                   <Route path="/recommendations" element={
                     <ProtectedRoute>

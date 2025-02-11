@@ -3,6 +3,16 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    background-color: theme('colors.light.primary');
+    color: theme('colors.light.text');
+  }
+
+  .dark {
+    background-color: theme('colors.dark.primary');
+    color: theme('colors.dark.text');
+  }
+
   html {
     @apply bg-light-primary dark:bg-dark-primary;
     @apply text-light-text dark:text-dark-text;
@@ -16,42 +26,31 @@
   }
 }
 
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-
-/* Hide scrollbar for IE, Edge and Firefox */
-.scrollbar-hide {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
-}
-
+/* Custom Input Styles */
 input[type="checkbox"] {
-  background-color: #ffffff; /* for light theme */
+  @apply bg-light-secondary dark:bg-dark-secondary;
+  @apply border-2 border-light-text/20 dark:border-dark-text/20;
+  @apply rounded;
   appearance: none;
   -webkit-appearance: none;
 }
 
-/* For dark theme */
-.dark input[type="checkbox"] {
-  background-color: #1f2937; /* or any dark color you prefer */
-}
-
-/* When checked */
 input[type="checkbox"]:checked {
-  background-color: #1a2337; 
-  border-color: #2563eb;
+  @apply bg-blue-600 dark:bg-blue-500;
+  @apply border-blue-600 dark:border-blue-500;
 }
 
-/* When checked */
-.dark input[type="checkbox"]:checked {
-  background-color: #4e73c2; 
-  border-color: #2563eb;
+/* Utility Classes */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .animate-marquee {
   animation: marquee 10s linear infinite;
-  /* Adjust duration and timing function as needed */
   white-space: nowrap;
-  /* Prevent text from wrapping */
 }

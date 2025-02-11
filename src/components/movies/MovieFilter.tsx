@@ -156,14 +156,19 @@ export const MovieFilter = ({
           </div>
         </div>
         <div className="flex items-center space-x-3">
-          {totalActiveFilters > 0 && (
-            <span className={`
-              text-sm transition-colors duration-200
-              ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}
-            `}>
-              {totalActiveFilters} active filter{totalActiveFilters !== 1 ? 's' : ''}
-            </span>
-          )}
+        {totalActiveFilters > 0 && (
+          <span className={`
+            text-sm transition-colors duration-200
+            ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}
+          `}>
+            {totalActiveFilters} active filter{totalActiveFilters !== 1 ? 's' : ''}
+          </span>
+        )}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors duration-200"
+          aria-label={isExpanded ? "Collapse filters" : "Expand filters"}
+        >
           {isExpanded ? (
             <ChevronUp className={`
               w-5 h-5 transition-colors duration-200
@@ -175,7 +180,8 @@ export const MovieFilter = ({
               ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}
             `} />
           )}
-        </div>
+        </button>
+      </div>
       </div>
 
       {/* Search Component */}
