@@ -10,7 +10,9 @@ import uvicorn
 import os
 from dotenv import load_dotenv
 from datetime import datetime
-from sqlalchemy import text, IntegrityError
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError  
+
 from . import models, schemas
 from .database import SessionLocal, engine, Base, get_db
 from .recommender.engine import router as recommender_router, MovieRecommender
@@ -40,8 +42,6 @@ app.add_middleware(
         "https://movie-recommender-git-main-dio27073s-projects.vercel.app/",
         "https://movie-recommender-git-main-dio27073s-projects.vercel.app",
         "https://movie-recommender-mpu1s9qgh-dio27073s-projects.vercel.app",
-
-        # You can also add the other domains for testing if needed
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -1039,21 +1039,6 @@ async def remove_from_library(
         raise HTTPException(status_code=500, detail="Failed to remove movie from library")
 
 if __name__ == "__main__":
-    # Get port from environment variable with fallback
+    import uvicorn
     port = int(os.getenv("PORT", 10000))
-    
-    print(f"Starting server on port {port}")
-    
-    # Configure uvicorn with proper host and port
-    config = uvicorn.Config(
-        "app.main:app",
-        host="0.0.0.0",
-        port=port,
-        workers=4,
-        log_level="info",
-        timeout_keep_alive=30,
-        loop="auto"
-    )
-    
-    server = uvicorn.Server(config)
-    server.run()
+    uvicorn.run(app, host="0.0.0.0", port=port)
