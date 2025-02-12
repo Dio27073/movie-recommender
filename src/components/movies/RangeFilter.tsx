@@ -27,7 +27,7 @@ const RangeFilter = ({
 
   // Custom styled slider with theme support
   const CustomSlider = styled(Slider)(() => ({
-    color: '#3b82f6', // blue-500 for both themes
+    color: '#1d2854', // blue-500 for both themes
     height: 4,
     padding: '15px 0',
     '& .MuiSlider-thumb': {

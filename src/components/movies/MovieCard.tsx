@@ -192,18 +192,18 @@ const ListView = ({ movie, onAddToLibrary, onRemoveFromLibrary, isInLibrary }: V
 );
 
 const CompactView = ({ movie, onAddToLibrary, onRemoveFromLibrary, isInLibrary }: ViewComponentProps) => (
-  <>
+  <div className="flex items-center">
     <img
       src={movie.imageUrl || '/api/placeholder/200/300'}
       alt={movie.title}
-      className="w-16 h-16 rounded-md object-cover"
+      className="w-12 h-18 rounded-md object-cover"
     />
     <div className="flex items-center ml-4 flex-1">
       <div className="flex-1">
-        <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">
+        <h3 className="text-base font-semibold text-light-text dark:text-dark-text">
           {movie.title}
         </h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400">
+        <p className="text-sm text-light-text/60 dark:text-dark-text/60">
           {movie.release_year}
         </p>
       </div>
@@ -216,12 +216,12 @@ const CompactView = ({ movie, onAddToLibrary, onRemoveFromLibrary, isInLibrary }
           onRemoveFromLibrary={onRemoveFromLibrary}
           size="small"
         />
-        <span className="text-sm text-gray-600 dark:text-gray-400">
+        <span className="text-sm text-light-text/60 dark:text-dark-text/60">
           {getGenresArray(movie.genres)[0]}
         </span>
       </div>
     </div>
-  </>
+  </div>
 );
 
 // Main component

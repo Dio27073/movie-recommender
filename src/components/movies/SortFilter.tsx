@@ -50,8 +50,8 @@ const SortFilter = ({ sortBy, onSortChange }: SortFilterProps) => {
         className={`
           w-full px-4 py-2 rounded-lg flex items-center justify-between
           ${theme === 'light' 
-            ? 'bg-white hover:bg-gray-50 border border-gray-200' 
-            : 'bg-gray-800 hover:bg-gray-700 border border-gray-700'
+            ? 'bg-light-secondary hover:bg-gray-100 border border-gray-200' 
+            : 'bg-dark-secondary hover:bg-gray-950 border border-gray-800'
           }
         `}
       >
@@ -69,10 +69,10 @@ const SortFilter = ({ sortBy, onSortChange }: SortFilterProps) => {
 
       {isOpen && (
         <div className={`
-          absolute z-50 mt-2 w-64 rounded-lg shadow-lg
+          absolute z-50 mt-2 w-full rounded-lg shadow-lg
           ${theme === 'light' 
-            ? 'bg-white border border-gray-200' 
-            : 'bg-gray-800 border border-gray-700'
+            ? 'bg-light-secondary border border-gray-200' 
+            : 'bg-dark-secondary border border-gray-800'
           }
         `}>
           <div className="p-2 space-y-1">
@@ -88,8 +88,8 @@ const SortFilter = ({ sortBy, onSortChange }: SortFilterProps) => {
                       ? 'bg-blue-50 text-blue-700'
                       : 'bg-blue-900/30 text-blue-300'
                     : theme === 'light'
-                      ? 'text-gray-700 hover:bg-gray-100'
-                      : 'text-gray-200 hover:bg-gray-700'
+                      ? 'bg-light-primary hover:bg-gray-100 text-light-text'
+                      : 'bg-dark-primary hover:bg-gray-800 text-dark-text'
                   }
                 `}
               >

@@ -111,7 +111,7 @@ export const MovieFilter = ({
       transition-colors duration-200 
       ${theme === 'light' 
         ? 'bg-white/90 shadow-lg' 
-        : 'bg-gray-800/50 backdrop-blur-sm'
+        : 'bg-gray-900/50 backdrop-blur-sm'
       } 
       rounded-lg p-6 space-y-6 mb-8
     `}>

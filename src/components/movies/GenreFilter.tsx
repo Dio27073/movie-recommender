@@ -46,8 +46,8 @@ const GenreFilter = ({ selectedGenres, onFilterChange }: GenreFilterProps) => {
         className={`
           w-full px-4 py-2 rounded-lg flex items-center justify-between
           ${theme === 'light' 
-            ? 'bg-white hover:bg-gray-50 border border-gray-200' 
-            : 'bg-gray-800 hover:bg-gray-700 border border-gray-700'
+            ? 'bg-light-secondary hover:bg-gray-100 border border-gray-200' 
+            : 'bg-dark-secondary hover:bg-gray-950 border border-gray-800'
           }
         `}
       >
@@ -70,8 +70,8 @@ const GenreFilter = ({ selectedGenres, onFilterChange }: GenreFilterProps) => {
         <div className={`
           absolute z-50 mt-2 w-96 rounded-lg shadow-lg
           ${theme === 'light' 
-            ? 'bg-white border border-gray-200' 
-            : 'bg-gray-800 border border-gray-700'
+            ? 'bg-light-secondary border border-gray-200' 
+            : 'bg-dark-secondary border border-gray-800'
           }
         `}>
           <div className="p-2 space-y-1 max-h-60 overflow-y-auto">
@@ -92,8 +92,8 @@ const GenreFilter = ({ selectedGenres, onFilterChange }: GenreFilterProps) => {
                   <span className={`
                     text-sm whitespace-nowrap transition-colors duration-200
                     ${theme === 'light'
-                      ? 'text-gray-700 group-hover:text-blue-600'
-                      : 'text-gray-200 group-hover:text-blue-400'
+                      ? 'text-light-text group-hover:text-blue-600'
+                      : 'text-dark-text group-hover:text-blue-800'
                     }
                   `}>
                     {genre}
