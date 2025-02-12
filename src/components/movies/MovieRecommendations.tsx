@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Loader } from 'lucide-react';
 import { 
   Movie, 
@@ -15,6 +15,7 @@ import { MovieDetailsModal } from './MovieDetailsModal';
 import { ViewSwitcher } from '../ui/ViewSwitcher';
 import { Pagination } from '../ui/Pagination';
 import { useLibrary } from '../../features/movies/hooks/useLibrary';
+import InfiniteScroll from '../ui/InfiniteScroll';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const MIN_YEAR = 1888;
@@ -138,6 +139,8 @@ const useMovieFilters = (onPageReset: () => void) => {
 };
 
 const MovieRecommendations = () => {
+  const [allMovies, setAllMovies] = useState<Movie[]>([]);
+  const seenMovieIds = useMemo(() => new Set<number>(), []);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -179,14 +182,51 @@ const MovieRecommendations = () => {
     pagination 
   } = useMovies(currentPage, filters);
 
+  // Add this effect to reset movies when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+    setAllMovies([]);
+    seenMovieIds.clear();
+  }, [filters, seenMovieIds]);
+
+  // Update the movie accumulation effect
+  useEffect(() => {
+    if (viewType === 'compact') {
+      if (currentPage === 1) {
+        seenMovieIds.clear();
+        movies.forEach(movie => seenMovieIds.add(movie.id));
+        setAllMovies(movies);
+      } else {
+        const uniqueNewMovies = movies.filter(movie => {
+          if (seenMovieIds.has(movie.id)) return false;
+          seenMovieIds.add(movie.id);
+          return true;
+        });
+        setAllMovies(prev => [...prev, ...uniqueNewMovies]);
+      }
+    } else {
+      seenMovieIds.clear();
+      setAllMovies(movies);
+    }
+  }, [movies, currentPage, viewType, seenMovieIds]);
+
+  const handleLoadMore = useCallback(() => {
+    if (pagination?.hasNext && !moviesLoading && viewType === 'compact') {
+      setCurrentPage(prev => prev + 1);
+    }
+  }, [pagination?.hasNext, moviesLoading, viewType]);
+
+  const handleViewChange = useCallback((newView: ViewType) => {
+    setViewType(newView);
+    setCurrentPage(1);
+    setAllMovies([]);
+    seenMovieIds.clear();
+  }, [setViewType, seenMovieIds]);
+
   const handleMovieClick = useCallback((movie: Movie) => {
     setSelectedMovie(movie);
     setIsModalOpen(true);
   }, []);
-
-  const handleViewChange = useCallback((newView: ViewType) => {
-    setViewType(newView);
-  }, [setViewType]);
 
   const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
@@ -226,12 +266,31 @@ const MovieRecommendations = () => {
     );
   }
 
+  const renderMoviesList = () => {
+    const moviesToRender = viewType === 'compact' ? allMovies : movies;
+    
+    return (
+      <div className={getViewClassName()}>
+        {moviesToRender.map((movie) => (
+          <MovieCard
+            key={`${movie.id}`} // Remove currentPage from key to prevent re-renders
+            movie={{
+              ...movie,
+              genres: getGenresArray(movie.genres),
+            }}
+            viewType={viewType}
+            onMovieClick={handleMovieClick}
+            onAddToLibrary={handleAddToLibrary}
+            onRemoveFromLibrary={handleRemoveFromLibrary}
+            isInLibrary={isInLibrary(movie.id)}
+          />
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-dark-primary p-8">
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">
-        
-      </h1>
-
       <div className="flex justify-between items-center mb-6">
         <ViewSwitcher currentView={viewType} onViewChange={handleViewChange} />
       </div>
@@ -258,7 +317,7 @@ const MovieRecommendations = () => {
           selectedPlatforms={filters.streamingPlatforms}
         />
       </div>
-  
+
       <div className="relative z-0">
         {movies.length === 0 && !moviesLoading ? (
           <div className="text-gray-600 dark:text-gray-400 p-4 mb-4">
@@ -266,37 +325,33 @@ const MovieRecommendations = () => {
           </div>
         ) : (
           <main>
-            {moviesLoading ? (
-              <div className="flex justify-center items-center h-64">
-                <Loader className="w-8 h-8 text-blue-500 dark:text-blue-400 animate-spin" />
-              </div>
+            {viewType === 'compact' ? (
+              <InfiniteScroll
+                onLoadMore={handleLoadMore}
+                hasMore={!!pagination?.hasNext}
+                loading={moviesLoading}
+              >
+                {renderMoviesList()}
+              </InfiniteScroll>
             ) : (
-              <div className="flex flex-col">
-                <div className={getViewClassName()}>
-                  {movies.map((movie) => (
-                    <MovieCard
-                      key={movie.id}
-                      movie={{
-                        ...movie,
-                        genres: getGenresArray(movie.genres),
-                      }}
-                      viewType={viewType}
-                      onMovieClick={handleMovieClick}
-                      onAddToLibrary={handleAddToLibrary}
-                      onRemoveFromLibrary={handleRemoveFromLibrary}  // Add this
-                      isInLibrary={isInLibrary(movie.id)}
+              <>
+                {moviesLoading ? (
+                  <div className="flex justify-center items-center h-64">
+                    <Loader className="w-8 h-8 text-blue-500 dark:text-blue-400 animate-spin" />
+                  </div>
+                ) : (
+                  <div className="flex flex-col">
+                    {renderMoviesList()}
+                    {pagination && pagination.totalPages > 1 && (
+                      <Pagination
+                        currentPage={currentPage}
+                        totalPages={pagination.totalPages}
+                        onPageChange={handlePageChange}
                       />
-                  ))}
-                </div>
-                
-                {pagination && pagination.totalPages > 1 && (
-                  <Pagination
-                    currentPage={currentPage}
-                    totalPages={pagination.totalPages}
-                    onPageChange={handlePageChange}
-                  />
+                    )}
+                  </div>
                 )}
-              </div>
+              </>
             )}
           </main>
         )}

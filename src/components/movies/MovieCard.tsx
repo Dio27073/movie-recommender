@@ -2,6 +2,7 @@ import { Star, BookmarkPlus, BookmarkX } from 'lucide-react';
 import { Movie } from '../../features/movies/types';
 import { ViewType } from '../ui/ViewSwitcher';
 import { useState } from 'react';
+import { useTheme } from '../../features/theme/themeContext';
 
 // Types
 interface MovieCardProps {
@@ -28,11 +29,21 @@ const getGenresArray = (genres: string | string[]): string[] => {
 };
 
 // Shared Components
-const GenreTag = ({ genre }: { genre: string }) => (
-  <span className="px-2 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full">
-    {genre}
-  </span>
-);
+const GenreTag = ({ genre }: { genre: string }) => {
+  const { theme } = useTheme();
+  return (
+    <span className={`
+      px-2 py-1 text-xs font-medium rounded-full
+      ${theme === 'light'
+        ? 'bg-gray-300 text-light-text/70'
+        : 'bg-gray-800 text-dark-text/70'
+      }
+    `}>
+      {genre}
+    </span>
+  );
+};
+
 
 const Rating = ({ rating, size = 'medium' }: { rating: number | null | undefined; size?: 'small' | 'medium' }) => (
   <div className="flex items-center">
@@ -233,7 +244,15 @@ export const MovieCard = ({
   onRemoveFromLibrary,
   isInLibrary
 }: MovieCardProps) => {
-  const baseClasses = "cursor-pointer bg-white dark:bg-dark-secondary rounded-lg shadow-lg overflow-hidden transform transition-all duration-200 hover:shadow-xl dark:shadow-gray-900";
+  const { theme } = useTheme();
+  
+  const baseClasses = `
+    cursor-pointer rounded-lg overflow-hidden transform transition-all duration-200 
+    ${theme === 'light'
+      ? 'bg-light-secondary shadow-lg hover:shadow-xl'
+      : 'bg-dark-secondary shadow-lg hover:shadow-xl shadow-gray-900'
+    }
+  `;
   
   const viewClasses = {
     grid: baseClasses,

@@ -104,6 +104,10 @@ export type FilterValue =
 export interface MovieCardProps {
   movie: Movie;  // Using the updated Movie type with string[] genres
   viewType: ViewType;
+  onMovieClick: (movie: Movie) => void;
+  onAddToLibrary: (movie: Movie) => void;
+  onRemoveFromLibrary: (movieId: number) => void;
+  isInLibrary: boolean;
 }
 
 export interface MovieFilterProps {

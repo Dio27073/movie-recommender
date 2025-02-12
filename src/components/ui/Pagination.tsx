@@ -1,5 +1,4 @@
-// src/components/ui/Pagination.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface PaginationProps {
@@ -13,6 +12,27 @@ export const Pagination: React.FC<PaginationProps> = ({
   totalPages,
   onPageChange,
 }) => {
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      // Only handle arrow keys if we're not in an input or textarea
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      if (event.key === 'ArrowLeft' && currentPage > 1) {
+        onPageChange(currentPage - 1);
+      } else if (event.key === 'ArrowRight' && currentPage < totalPages) {
+        onPageChange(currentPage + 1);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress);
+    };
+  }, [currentPage, totalPages, onPageChange]);
+
   const getPageNumbers = () => {
     let pages: (number | string)[] = [];
     const maxVisiblePages = 5;
@@ -40,7 +60,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           className={`flex items-center justify-center p-2 rounded-md ${
             currentPage === 1
               ? 'text-gray-400 cursor-not-allowed'
-              : 'text-gray-700 hover:bg-gray-100'
+              : 'text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'
           }`}
           aria-label="Previous page"
         >
@@ -58,7 +78,7 @@ export const Pagination: React.FC<PaginationProps> = ({
                   ? 'bg-blue-600 text-white'
                   : page === '...'
                   ? 'text-gray-500 cursor-default'
-                  : 'text-gray-700 hover:bg-gray-100'
+                  : 'text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'
               }`}
             >
               {page}
@@ -72,7 +92,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           className={`flex items-center justify-center p-2 rounded-md ${
             currentPage === totalPages
               ? 'text-gray-400 cursor-not-allowed'
-              : 'text-gray-700 hover:bg-gray-100'
+              : 'text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'
           }`}
           aria-label="Next page"
         >

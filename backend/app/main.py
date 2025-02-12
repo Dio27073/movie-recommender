@@ -223,7 +223,7 @@ async def startup_event():
     try:
         # Initialize movies if database is empty
         if db.query(models.Movie).count() == 0:
-            total_pages = 15
+            total_pages = 260
             processed_movies = set()
             total_processed = 0
             total_skipped = 0
