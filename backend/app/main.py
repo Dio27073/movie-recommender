@@ -229,7 +229,7 @@ async def startup_event():
         print(f"Current movie count in database: {movie_count}")
         
         if movie_count == 0:
-            total_pages = 260  # Adjust based on your needs
+            total_pages = 60  # Adjust based on your needs
             processed_movies = set()
             total_processed = 0
             total_skipped = 0
