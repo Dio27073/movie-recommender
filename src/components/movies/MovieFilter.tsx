@@ -110,8 +110,8 @@ export const MovieFilter = ({
     <div className={`
       transition-colors duration-200 
       ${theme === 'light' 
-        ? 'bg-white/90 shadow-lg' 
-        : 'bg-gray-900/50 backdrop-blur-sm'
+        ? 'bg-light-secondary border border-gray-200 shadow-lg' 
+        : 'bg-dark-secondary border border-gray-950 shadow-lg'
       } 
       rounded-lg p-6 space-y-6 mb-8
     `}>
@@ -123,8 +123,8 @@ export const MovieFilter = ({
             className={`
               p-2 rounded-full transition-colors duration-200
               ${theme === 'light'
-                ? 'hover:bg-gray-100 text-gray-600'
-                : 'hover:bg-gray-700/50 text-gray-400'
+                ? 'hover:bg-gray-100 text-light-text'
+                : 'hover:bg-gray-950 text-dark-text'
               }
             `}
             aria-label="Toggle search"
@@ -143,45 +143,51 @@ export const MovieFilter = ({
                 w-5 h-5 transition-all duration-200
                 ${isExpanded 
                   ? 'text-blue-500' 
-                  : theme === 'light' ? 'text-gray-600' : 'text-gray-400'
+                  : theme === 'light' ? 'text-light-text' : 'text-dark-text'
                 }
               `} 
             />
             <h3 className={`
               text-lg font-semibold transition-colors duration-200
-              ${theme === 'light' ? 'text-gray-800' : 'text-gray-200'}
+              ${theme === 'light' ? 'text-light-text' : 'text-dark-text'}
             `}>
               Filters
             </h3>
           </div>
         </div>
         <div className="flex items-center space-x-3">
-        {totalActiveFilters > 0 && (
-          <span className={`
-            text-sm transition-colors duration-200
-            ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}
-          `}>
-            {totalActiveFilters} active filter{totalActiveFilters !== 1 ? 's' : ''}
-          </span>
-        )}
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors duration-200"
-          aria-label={isExpanded ? "Collapse filters" : "Expand filters"}
-        >
-          {isExpanded ? (
-            <ChevronUp className={`
-              w-5 h-5 transition-colors duration-200
-              ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}
-            `} />
-          ) : (
-            <ChevronDown className={`
-              w-5 h-5 transition-colors duration-200
-              ${theme === 'light' ? 'text-gray-600' : 'text-gray-400'}
-            `} />
+          {totalActiveFilters > 0 && (
+            <span className={`
+              text-sm transition-colors duration-200
+              ${theme === 'light' ? 'text-light-text' : 'text-dark-text'}
+            `}>
+              {totalActiveFilters} active filter{totalActiveFilters !== 1 ? 's' : ''}
+            </span>
           )}
-        </button>
-      </div>
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className={`
+              p-1 rounded-full transition-colors duration-200
+              ${theme === 'light' 
+                ? 'hover:bg-gray-100' 
+                : 'hover:bg-gray-950'
+              }
+            `}
+            aria-label={isExpanded ? "Collapse filters" : "Expand filters"}
+          >
+            {isExpanded ? (
+              <ChevronUp className={`
+                w-5 h-5 transition-colors duration-200
+                ${theme === 'light' ? 'text-gray-600' : 'text-gray-300'}
+              `} />
+            ) : (
+              <ChevronDown className={`
+                w-5 h-5 transition-colors duration-200
+                ${theme === 'light' ? 'text-gray-600' : 'text-gray-300'}
+              `} />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Search Component */}

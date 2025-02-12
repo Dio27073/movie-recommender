@@ -47,7 +47,7 @@ const GenreFilter = ({ selectedGenres, onFilterChange }: GenreFilterProps) => {
           w-full px-4 py-2 rounded-lg flex items-center justify-between
           ${theme === 'light' 
             ? 'bg-light-secondary hover:bg-gray-100 border border-gray-200' 
-            : 'bg-dark-secondary hover:bg-gray-950 border border-gray-800'
+            : 'bg-dark-secondary hover:bg-gray-950 border border-gray-400'
           }
         `}
       >
