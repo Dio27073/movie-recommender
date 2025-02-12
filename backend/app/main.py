@@ -10,7 +10,7 @@ import uvicorn
 import os
 from dotenv import load_dotenv
 from datetime import datetime
-from sqlalchemy import text 
+from sqlalchemy import text, IntegrityError
 from . import models, schemas
 from .database import SessionLocal, engine, Base, get_db
 from .recommender.engine import router as recommender_router, MovieRecommender
@@ -208,47 +208,71 @@ async def fetch_streaming_platforms(tmdb_id: int, region: str = "US") -> list[st
 @app.on_event("startup")
 async def startup_event():
     retries = 5
+    db = None
     for i in range(retries):
         try:
             db = SessionLocal()
             # Test the connection with proper SQL text
             db.execute(text("SELECT 1"))
+            print("Successfully connected to database")
             break
         except Exception as e:
             if i == retries - 1:
-                print(f"Failed to initialize database after {retries} attempts")
+                print(f"Failed to initialize database after {retries} attempts: {str(e)}")
                 raise
-            print(f"Database connection attempt {i + 1} failed, retrying...")
+            print(f"Database connection attempt {i + 1} failed, retrying in 5 seconds...")
             time.sleep(5)
+    
     try:
         # Initialize movies if database is empty
-        if db.query(models.Movie).count() == 0:
-            total_pages = 260
+        movie_count = db.query(models.Movie).count()
+        print(f"Current movie count in database: {movie_count}")
+        
+        if movie_count == 0:
+            total_pages = 260  # Adjust based on your needs
             processed_movies = set()
             total_processed = 0
             total_skipped = 0
+            page_failures = 0
+            max_page_failures = 5  # Maximum number of consecutive page failures before aborting
 
             print(f"Starting movie import process for {total_pages} pages...")
 
             for page in range(1, total_pages + 1):
+                page_processed = 0
+                page_skipped = 0
+                
                 try:
                     print(f"\nProcessing page {page}/{total_pages}")
+                    
+                    # Add rate limiting between pages
+                    time.sleep(1)  # 1 second delay between pages
+                    
                     response = requests.get(
                         f"{TMDB_BASE_URL}/movie/popular",
                         params={
                             "api_key": TMDB_API_KEY,
                             "language": "en-US",
                             "page": page
-                        }
+                        },
+                        timeout=10  # Add timeout
                     )
                     
                     if response.status_code == 429:  # Too Many Requests
                         print(f"Rate limit hit on page {page}. Waiting 10 seconds...")
                         time.sleep(10)
+                        page_failures += 1
+                        if page_failures >= max_page_failures:
+                            print("Too many consecutive failures. Aborting import.")
+                            break
                         continue
                         
                     if response.status_code != 200:
                         print(f"Error on page {page}: Status code {response.status_code}")
+                        page_failures += 1
+                        if page_failures >= max_page_failures:
+                            print("Too many consecutive failures. Aborting import.")
+                            break
                         continue
 
                     movies_data = response.json().get("results", [])
@@ -256,39 +280,23 @@ async def startup_event():
                         print(f"No movies found on page {page}")
                         continue
 
-                    page_processed = 0
-                    page_skipped = 0
+                    # Reset page failures counter on successful request
+                    page_failures = 0
                     
                     for movie_data in movies_data:
                         try:
+                            # Skip if missing required data
+                            if not all(key in movie_data for key in ["title", "release_date", "id"]):
+                                print(f"Skipping movie with missing required data: {movie_data.get('title', 'Unknown')}")
+                                page_skipped += 1
+                                continue
+
+                            # Skip if already processed
                             if movie_data["id"] in processed_movies:
-                                print(f"Skipped duplicate movie: {movie_data.get('title')}")
+                                print(f"Skipping duplicate movie: {movie_data.get('title')}")
                                 page_skipped += 1
                                 continue
 
-                            if not all(key in movie_data for key in ["title", "overview", "release_date", "vote_average", "poster_path"]):
-                                print(f"Skipped movie due to missing data: {movie_data.get('title')}")
-                                page_skipped += 1
-                                continue
-
-                            if not movie_data["release_date"]:
-                                print(f"Skipped movie due to missing release date: {movie_data.get('title')}")
-                                page_skipped += 1
-                                continue
-
-                            # Get detailed movie info
-                            details_response = requests.get(
-                                f"{TMDB_BASE_URL}/movie/{movie_data['id']}",
-                                params={"api_key": TMDB_API_KEY, "language": "en-US"}
-                            )
-                            
-                            if details_response.status_code != 200:
-                                print(f"Failed to get details for movie {movie_data.get('title')}: Status {details_response.status_code}")
-                                page_skipped += 1
-                                continue
-
-                            movie_details = details_response.json()
-                                
                             try:
                                 release_year = int(movie_data["release_date"][:4])
                             except (ValueError, IndexError):
@@ -296,16 +304,40 @@ async def startup_event():
                                 page_skipped += 1
                                 continue
 
-                            # Fetch IMDB data
+                            # Get IMDB data with retry logic
                             imdb_data = await fetch_imdb_data(movie_data["title"], release_year)
-                            if not imdb_data:
-                                print(f"No IMDB data found for movie {movie_data.get('title')}")
+                            
+                            # Check for existing movie with same IMDB ID
+                            if imdb_data and imdb_data["imdb_id"]:
+                                existing_movie = db.query(models.Movie).filter(
+                                    models.Movie.imdb_id == imdb_data["imdb_id"]
+                                ).first()
+                                
+                                if existing_movie:
+                                    print(f"Movie already exists with IMDB ID {imdb_data['imdb_id']}")
+                                    page_skipped += 1
+                                    continue
+
+                            # Get detailed movie info
+                            details_response = requests.get(
+                                f"{TMDB_BASE_URL}/movie/{movie_data['id']}",
+                                params={"api_key": TMDB_API_KEY, "language": "en-US"},
+                                timeout=10
+                            )
+                            
+                            if details_response.status_code != 200:
+                                print(f"Failed to get details for movie {movie_data.get('title')}")
+                                page_skipped += 1
+                                continue
+
+                            movie_details = details_response.json()
                             
                             # Fetch cast and crew data
                             cast_crew_data = await fetch_movie_cast_crew(movie_data["id"])
-                            if not cast_crew_data["cast"] and not cast_crew_data["crew"]:
-                                print(f"No cast/crew data found for movie {movie_data.get('title')}")
-
+                            
+                            # Fetch trailer URL
+                            trailer_url = await fetch_movie_trailer(movie_data["id"])
+                            
                             # Calculate rating
                             if imdb_data and imdb_data["imdb_rating"]:
                                 converted_rating = (imdb_data["imdb_rating"] / 2)
@@ -314,32 +346,11 @@ async def startup_event():
                             
                             converted_rating = min(max(converted_rating, 0), 5)
                             
-                            # Fetch trailer URL
-                            trailer_url = await fetch_movie_trailer(movie_data["id"])
-                            if not trailer_url:
-                                print(f"No trailer found for movie {movie_data.get('title')}")
-
-                            # Initialize popularity metrics
-                            popularity_score = movie_data.get("popularity", 0)
-
-                            # Get MPAA rating from OMDB data
-                            content_rating = None
-                            if imdb_data:
-                                try:
-                                    omdb_response = requests.get(
-                                        OMDB_BASE_URL,
-                                        params={
-                                            "apikey": OMDB_API_KEY,
-                                            "i": imdb_data["imdb_id"]
-                                        }
-                                    )
-                                    if omdb_response.status_code == 200:
-                                        omdb_data = omdb_response.json()
-                                        content_rating = omdb_data.get("Rated")
-                                except Exception as e:
-                                    print(f"Error fetching OMDB details: {str(e)}")
-
-                            # Set mood tags based on genres and description
+                            # Get streaming platforms
+                            streaming_platforms = await fetch_streaming_platforms(movie_data["id"])
+                            
+                            # Set mood tags based on genres
+                            genres = [genre["name"] for genre in movie_details["genres"]]
                             mood_tags = []
                             genre_mood_mapping = {
                                 "Comedy": ["Funny", "Feel-Good"],
@@ -358,51 +369,47 @@ async def startup_event():
                                 "Mystery": ["Thought-Provoking", "Intense"]
                             }
 
-                            genres = [genre["name"] for genre in movie_details["genres"]]
                             for genre in genres:
                                 if genre in genre_mood_mapping:
                                     mood_tags.extend(genre_mood_mapping[genre])
                             mood_tags = list(set(mood_tags))  # Remove duplicates
 
-                            # Fetch streaming platforms using TMDB Watch Providers API
-                            streaming_platforms = await fetch_streaming_platforms(movie_data["id"])
-                            if not streaming_platforms:  # Fallback if no streaming data found
-                                if release_year >= 2020:
-                                    streaming_platforms = ["Prime Video"]  # Conservative fallback
-                                elif "Animation" in genres or "Family" in genres:
-                                    streaming_platforms = ["Disney+"]
-                                else:
-                                    streaming_platforms = []
-                            
                             # Create movie record
                             movie = models.Movie(
                                 title=movie_data["title"],
                                 description=movie_data["overview"],
                                 genres=",".join(genres),
                                 release_year=release_year,
-                                release_date=datetime.strptime(movie_data["release_date"], '%Y-%m-%d'),  # Add this line
+                                release_date=datetime.strptime(movie_data["release_date"], '%Y-%m-%d'),
                                 average_rating=converted_rating,
-                                imageUrl=f"{TMDB_IMAGE_BASE_URL}{movie_data['poster_path']}",
+                                imageUrl=f"{TMDB_IMAGE_BASE_URL}{movie_data['poster_path']}" if movie_data.get('poster_path') else None,
                                 imdb_id=imdb_data["imdb_id"] if imdb_data else None,
                                 imdb_rating=imdb_data["imdb_rating"] if imdb_data else None,
                                 imdb_votes=imdb_data["imdb_votes"] if imdb_data else None,
                                 trailer_url=trailer_url,
-                                cast=",".join(cast_crew_data["cast"]),
-                                crew=",".join(cast_crew_data["crew"]),
-                                popularity_score=popularity_score,
+                                cast=",".join(cast_crew_data["cast"]) if cast_crew_data["cast"] else None,
+                                crew=",".join(cast_crew_data["crew"]) if cast_crew_data["crew"] else None,
+                                popularity_score=movie_data.get("popularity", 0),
                                 view_count=0,
                                 completion_rate=0.0,
                                 rating_count=0,
                                 keywords=movie_details.get("tagline", ""),
-                                content_rating=content_rating,
                                 mood_tags=",".join(mood_tags) if mood_tags else None,
                                 streaming_platforms=",".join(streaming_platforms) if streaming_platforms else None
                             )
-                            db.add(movie)
-                            processed_movies.add(movie_data["id"])
-                            page_processed += 1
-                            total_processed += 1
-                            print(f"Successfully processed: {movie_data.get('title')}")
+
+                            try:
+                                db.add(movie)
+                                db.flush()  # Test the insert without committing
+                                processed_movies.add(movie_data["id"])
+                                page_processed += 1
+                                total_processed += 1
+                                print(f"Successfully processed: {movie_data.get('title')}")
+                            except IntegrityError as e:
+                                db.rollback()
+                                print(f"Duplicate movie detected: {str(e)}")
+                                page_skipped += 1
+                                continue
 
                         except Exception as e:
                             print(f"Error processing movie {movie_data.get('title', 'Unknown')}: {str(e)}")
@@ -415,12 +422,13 @@ async def startup_event():
                     # Commit after each page
                     try:
                         db.commit()
+                        print(f"Successfully committed page {page}")
                     except Exception as e:
                         print(f"Error committing page {page}: {str(e)}")
                         db.rollback()
                         continue
 
-                    # Rate limiting
+                    # Rate limiting between pages
                     time.sleep(0.5)
 
                 except Exception as e:
@@ -463,7 +471,7 @@ async def startup_event():
                 {
                     "user_id": vh.user_id,
                     "movie_id": vh.movie_id,
-                    "rating": 5.0 if vh.completed else (vh.watch_duration or 0) / 7200  # Convert duration to rating
+                    "rating": 5.0 if vh.completed else (vh.watch_duration or 0) / 7200
                 } for vh in viewing_history
             ]
             recommender.train_collaborative_model(viewing_data)
@@ -476,7 +484,8 @@ async def startup_event():
         print(f"Error during startup: {str(e)}")
         raise
     finally:
-        db.close()
+        if db:
+            db.close()
 
 @app.get("/movies/", response_model=schemas.PaginatedMovieResponse)
 def get_movies(
@@ -1030,11 +1039,21 @@ async def remove_from_library(
         raise HTTPException(status_code=500, detail="Failed to remove movie from library")
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 10000))  # Default Render port is 10000
-    print(f"Starting server on port {port}")  # Add logging
-    uvicorn.run(
+    # Get port from environment variable with fallback
+    port = int(os.getenv("PORT", 10000))
+    
+    print(f"Starting server on port {port}")
+    
+    # Configure uvicorn with proper host and port
+    config = uvicorn.Config(
         "app.main:app",
-        host="0.0.0.0",  # Required for Render
+        host="0.0.0.0",
         port=port,
-        log_level="info"
+        workers=4,
+        log_level="info",
+        timeout_keep_alive=30,
+        loop="auto"
     )
+    
+    server = uvicorn.Server(config)
+    server.run()
