@@ -2,10 +2,8 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import QueuePool
 from sqlalchemy import text  
 import os
-import time
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -15,76 +13,55 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("No DATABASE_URL environment variable set")
 
-# Extract host from DATABASE_URL for logging
+print(f"Attempting to connect to database using session pooler...")
+
 try:
-    print(f"Attempting to connect to database...")
-    
-    # Configure engine for Supabase with SSL required
     engine = create_engine(
         DATABASE_URL,
-        pool_size=5,  # Reduced pool size
-        max_overflow=2,
+        # Session pooler specific settings
+        pool_size=20,  # Increased for session pooler
+        max_overflow=10,
         pool_timeout=30,
-        pool_recycle=1800,
+        pool_recycle=300,  # 5 minutes
         pool_pre_ping=True,
         connect_args={
-            "connect_timeout": 60,  # Increased timeout
-            "application_name": "movie_recommender",
             "sslmode": "require",
+            "application_name": "movie_recommender",
+            # Session pooler specific keepalive settings
             "keepalives": 1,
             "keepalives_idle": 30,
             "keepalives_interval": 10,
-            "keepalives_count": 5,
-            "options": "-c timezone=utc"
+            "keepalives_count": 5
         }
     )
+    
+    # Verify connection
+    with engine.connect() as connection:
+        result = connection.execute(text("SELECT current_setting('server_version'), current_setting('server_version_num'), inet_server_addr()"))
+        version, version_num, server_addr = result.fetchone()
+        print(f"Successfully connected to PostgreSQL:")
+        print(f"Version: {version}")
+        print(f"Version Number: {version_num}")
+        print(f"Server Address: {server_addr}")
 
 except Exception as e:
     print(f"Error configuring database engine: {str(e)}")
     raise
 
-# Add event listeners for debugging
-@event.listens_for(engine, 'connect')
-def receive_connect(dbapi_connection, connection_record):
-    print("Database connection established")
-    cursor = dbapi_connection.cursor()
-    cursor.execute('SELECT version()')
-    version = cursor.fetchone()
-    print(f"Connected to: {version}")
-
-@event.listens_for(engine, 'checkout')
-def receive_checkout(dbapi_connection, connection_record, connection_proxy):
-    print("Database connection checked out from pool")
-
-@event.listens_for(engine, 'checkin')
-def receive_checkin(dbapi_connection, connection_record):
-    print("Database connection returned to pool")
-
-@event.listens_for(engine, "engine_connect")
-def engine_connect(conn, branch):
-    print("Engine level connection established")
-
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# Simplified get_db function
 def get_db():
-    """Get database session with proper resource management"""
-    db = None
+    db = SessionLocal()
     try:
-        db = SessionLocal()
-        # Test connection
-        db.execute(text("SELECT 1"))
         yield db
     except Exception as e:
-        print(f"Database connection error: {str(e)}")
-        if db:
-            db.close()
+        print(f"Database session error: {str(e)}")
         raise
     finally:
-        if db:
-            db.close()
+        db.close()
 
-# Additional helper for explicit context management if needed
 @contextmanager
 def get_db_context():
     """Context manager for database sessions"""
