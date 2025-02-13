@@ -13,5 +13,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=port,
         workers=1,  # Reduced workers to minimize complexity
-        timeout_keep_alive=30
+        timeout_keep_alive=75,
+        log_level="info"
     )

@@ -6,7 +6,12 @@ from sqlalchemy import text
 import os
 import time
 
+# Get database URL from environment variable
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./movie_recommender.db")
+
+# Print the database URL (with credentials removed) for debugging
+safe_url = DATABASE_URL.split("@")[-1] if "@" in DATABASE_URL else DATABASE_URL
+print(f"Connecting to database at: {safe_url}")
 
 # Handle special Render PostgreSQL URL format
 if DATABASE_URL.startswith("postgres://"):
@@ -19,39 +24,50 @@ if DATABASE_URL.startswith("sqlite"):
         connect_args={"check_same_thread": False}
     )
 else:
-    # PostgreSQL configuration with connection pooling
+    # PostgreSQL configuration with connection pooling and retry
     engine = create_engine(
         DATABASE_URL,
         poolclass=QueuePool,
-        pool_size=5,  # Number of permanent connections
-        max_overflow=10,  # Number of additional connections when pool is full
-        pool_timeout=30,  # Timeout for getting connection from pool
-        pool_recycle=1800,  # Recycle connections after 30 minutes
-        pool_pre_ping=True,  # Enable connection health checks
+        pool_size=5,
+        max_overflow=10,
+        pool_timeout=30,
+        pool_recycle=1800,
+        pool_pre_ping=True,
+        connect_args={
+            "connect_timeout": 30,
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5
+        }
     )
-
-# Add connection retry logic
-def get_db_with_retry(retries=5, backoff=1):
-    for attempt in range(retries):
-        try:
-            db = SessionLocal()
-            # Test the connection with proper SQL text
-            db.execute(text("SELECT 1"))
-            return db
-        except Exception as e:
-            if attempt == retries - 1:  # Last attempt
-                raise Exception(f"Failed to connect to database after {retries} attempts: {str(e)}")
-            time.sleep(backoff * (attempt + 1))
-            continue
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def get_db():
-    db = None
-    try:
-        db = get_db_with_retry()
-        yield db
-    finally:
-        if db:
-            db.close()
+    """Get database session with retry logic"""
+    retries = 5
+    delay = 1
+    last_exception = None
+    
+    for attempt in range(retries):
+        try:
+            db = SessionLocal()
+            # Test the connection
+            db.execute(text("SELECT 1"))
+            return db
+        except Exception as e:
+            last_exception = e
+            if attempt == retries - 1:
+                print(f"Failed to connect to database after {retries} attempts: {str(e)}")
+                raise
+            print(f"Database connection attempt {attempt + 1} failed, retrying in {delay} seconds...")
+            time.sleep(delay)
+            delay *= 2  # Exponential backoff
+        finally:
+            if 'db' in locals():
+                db.close()
+    
+    if last_exception:
+        raise last_exception

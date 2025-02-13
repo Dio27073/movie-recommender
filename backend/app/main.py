@@ -406,6 +406,22 @@ async def load_initial_movies(db: Session, pages: int = 10):
     print(f"Total movies skipped: {total_skipped}")
     return total_processed, total_skipped
 
+@app.get("/health")
+async def health_check(db: Session = Depends(get_db)):
+    try:
+        # Test database connection
+        db.execute(text("SELECT 1"))
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Database connection failed: {str(e)}"
+        )
+    
 @app.on_event("startup")
 async def startup_event():
     retries = 5
@@ -779,6 +795,7 @@ async def record_movie_view(
     db.commit()
     
     return {"status": "success", "message": "View recorded successfully"}
+
 
 @app.post("/movies/", response_model=schemas.Movie)
 async def create_movie(movie: schemas.MovieCreate, db: Session = Depends(get_db)):
