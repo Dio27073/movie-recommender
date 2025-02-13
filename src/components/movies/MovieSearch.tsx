@@ -27,7 +27,7 @@ const MovieResultItem = ({ movie, onSelect }: { movie: Movie; onSelect: (movie: 
   >
     <div className="flex items-center space-x-3">
       <img 
-        src={movie.imageUrl || '/api/placeholder/50/75'} 
+        src={movie.imageurl || '/api/placeholder/50/75'} 
         alt={movie.title}
         className="w-10 h-14 object-cover rounded"
       />

@@ -36,17 +36,19 @@ recommender = MovieRecommender()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",
+        "http://localhost:5173",    # Vite dev server
+        "http://localhost:8000",    # FastAPI server
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:8000",
         "https://movie-recommender-two-zeta.vercel.app",
-        "https://movie-recommender-two-zeta.vercel.app/",
-        "https://movie-recommender-git-main-dio27073s-projects.vercel.app/",
         "https://movie-recommender-git-main-dio27073s-projects.vercel.app",
-        "https://movie-recommender-mpu1s9qgh-dio27073s-projects.vercel.app",
+        "https://movie-recommender-mpu1s9qgh-dio27073s-projects.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]  # Added this line
+    expose_headers=["*"],  # Added this line
+    allow_origin_regex="https://.*\.vercel\.app/?.*"  # This will allow all vercel.app subdomains
 )
 
 # Include routers
@@ -350,7 +352,7 @@ async def load_initial_movies(db: Session, pages: int = 10):
                         release_year=release_year,
                         release_date=datetime.strptime(movie_data["release_date"], '%Y-%m-%d'),
                         average_rating=converted_rating,
-                        imageUrl=f"{TMDB_IMAGE_BASE_URL}{movie_data['poster_path']}" if movie_data.get('poster_path') else None,
+                        imageurl=f"{TMDB_IMAGE_BASE_URL}{movie_data['poster_path']}" if movie_data.get('poster_path') else None,
                         imdb_id=imdb_data["imdb_id"] if imdb_data else None,
                         imdb_rating=imdb_data["imdb_rating"] if imdb_data else None,
                         imdb_votes=imdb_data["imdb_votes"] if imdb_data else None,
@@ -406,6 +408,18 @@ async def load_initial_movies(db: Session, pages: int = 10):
     print(f"Total movies skipped: {total_skipped}")
     return total_processed, total_skipped
 
+@app.get("/test-db")
+async def test_db(db: Session = Depends(get_db)):
+    try:
+        # Test query
+        result = db.execute(text("SELECT COUNT(*) FROM movies")).scalar()
+        return {"status": "ok", "movie_count": result}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database connection test failed: {str(e)}"
+        )
+    
 @app.get("/health")
 async def health_check(db: Session = Depends(get_db)):
     try:
@@ -563,7 +577,7 @@ def get_movies(
             "description": db_movie.description,
             "release_year": db_movie.release_year,
             "average_rating": db_movie.average_rating,
-            "imageUrl": db_movie.imageUrl,
+            "imageurl": db_movie.imageurl,
             "genres": db_movie.genres.split(",") if db_movie.genres else [],
             "imdb_id": db_movie.imdb_id,
             "imdb_rating": db_movie.imdb_rating,
@@ -676,7 +690,7 @@ def search_movies_by_cast_crew(
             "description": db_movie.description,
             "release_year": db_movie.release_year,
             "average_rating": db_movie.average_rating,
-            "imageUrl": db_movie.imageUrl,
+            "imageurl": db_movie.imageurl,
             "genres": db_movie.genres.split(",") if db_movie.genres else [],
             "imdb_id": db_movie.imdb_id,
             "imdb_rating": db_movie.imdb_rating,
@@ -741,7 +755,7 @@ async def get_recommended_movies(
             "description": db_movie.description,
             "release_year": db_movie.release_year,
             "average_rating": db_movie.average_rating,
-            "imageUrl": db_movie.imageUrl,
+            "imageurl": db_movie.imageurl,
             "genres": db_movie.genres.split(",") if db_movie.genres else [],
             "imdb_id": db_movie.imdb_id,
             "imdb_rating": db_movie.imdb_rating,
@@ -847,7 +861,7 @@ async def create_movie(movie: schemas.MovieCreate, db: Session = Depends(get_db)
         "description": db_movie.description,
         "release_year": db_movie.release_year,
         "average_rating": db_movie.average_rating,
-        "imageUrl": db_movie.imageUrl,
+        "imageurl": db_movie.imageurl,
         "genres": db_movie.genres.split(",") if db_movie.genres else [],
         "imdb_id": db_movie.imdb_id,
         "imdb_rating": db_movie.imdb_rating,
@@ -923,7 +937,7 @@ async def get_user_library(
             viewed_movies_data.append({
                 "movie_id": vh.movie_id,
                 "title": movie.title,
-                "imageUrl": movie.imageUrl,
+                "imageurl": movie.imageurl,
                 "watched_at": vh.watched_at,
                 "completed": vh.completed
             })
@@ -935,7 +949,7 @@ async def get_user_library(
             rated_movies_data.append({
                 "movie_id": rm.movie_id,
                 "title": movie.title,
-                "imageUrl": movie.imageUrl,
+                "imageurl": movie.imageurl,
                 "rating": rm.rating,
                 "rated_at": rm.created_at
             })
@@ -978,54 +992,55 @@ async def add_to_library(
         raise HTTPException(status_code=500, detail="Failed to add movie to library")
     
 @app.get("/movies/trending/", response_model=schemas.PaginatedMovieResponse)
-async def get_trending_movies(
-    time_window: str = "month",  # or "day"
+def get_trending_movies(
+    time_window: str = "month",
     page: int = 1,
     per_page: int = 30,
     db: Session = Depends(get_db)
 ):
     try:
         # Call TMDB API for trending movies
-        response = requests.get(
+        tmdb_response = requests.get(
             f"{TMDB_BASE_URL}/trending/movie/{time_window}",
             params={
                 "api_key": TMDB_API_KEY,
                 "page": page
             }
         )
-        response.raise_for_status()
-        tmdb_data = response.json()
+        tmdb_response.raise_for_status()
+        tmdb_data = tmdb_response.json()
         
-        # Get TMDB IDs of trending movies
-        tmdb_movies = tmdb_data.get("results", [])
-        
-        # Get corresponding movies from our database
         movie_list = []
-        for tmdb_movie in tmdb_movies[:per_page]:
-            # Try to find movie by TMDB ID first
-            movie = db.query(models.Movie).filter(
-                models.Movie.title == tmdb_movie["title"],
-                models.Movie.release_year == int(tmdb_movie["release_date"][:4])
-            ).first()
-            
-            if movie:
-                movie_dict = {
-                    "id": movie.id,
-                    "title": movie.title,
-                    "description": movie.description,
-                    "release_year": movie.release_year,
-                    "average_rating": movie.average_rating,
-                    "imageUrl": movie.imageUrl,
-                    "genres": movie.genres.split(",") if movie.genres else [],
-                    "imdb_id": movie.imdb_id,
-                    "imdb_rating": movie.imdb_rating,
-                    "imdb_votes": movie.imdb_votes,
-                    "trailer_url": movie.trailer_url,
-                    "cast": movie.cast.split(",") if movie.cast else [],
-                    "crew": movie.crew.split(",") if movie.crew else []
-                }
-                movie_list.append(movie_dict)
-        
+        for tmdb_movie in tmdb_data.get("results", [])[:per_page]:
+            try:
+                release_year = int(tmdb_movie["release_date"][:4]) if tmdb_movie.get("release_date") else None
+                
+                if release_year:
+                    movie = db.query(models.Movie).filter(
+                        models.Movie.title == tmdb_movie["title"],
+                        models.Movie.release_year == release_year
+                    ).first()
+                    
+                    if movie:
+                        movie_list.append({
+                            "id": movie.id,
+                            "title": movie.title,
+                            "description": movie.description,
+                            "release_year": movie.release_year,
+                            "average_rating": movie.average_rating,
+                            "imageurl": movie.imageurl,
+                            "genres": movie.genres.split(",") if movie.genres else [],
+                            "imdb_id": movie.imdb_id,
+                            "imdb_rating": movie.imdb_rating,
+                            "imdb_votes": movie.imdb_votes,
+                            "trailer_url": movie.trailer_url,
+                            "cast": movie.cast.split(",") if movie.cast else [],
+                            "crew": movie.crew.split(",") if movie.crew else []
+                        })
+            except Exception as e:
+                print(f"Error processing movie {tmdb_movie.get('title')}: {str(e)}")
+                continue
+
         return {
             "items": movie_list,
             "total": len(movie_list),
@@ -1034,10 +1049,16 @@ async def get_trending_movies(
             "has_next": page < tmdb_data.get("total_pages", 1),
             "has_prev": page > 1
         }
-        
     except Exception as e:
-        print(f"Error fetching trending movies: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to fetch trending movies")
+        print(f"Error in get_trending_movies: {str(e)}")
+        return {
+            "items": [],
+            "total": 0,
+            "page": page,
+            "total_pages": 1,
+            "has_next": False,
+            "has_prev": page > 1
+        }
     
 @app.delete("/api/movies/{movie_id}/view")
 async def remove_from_library(

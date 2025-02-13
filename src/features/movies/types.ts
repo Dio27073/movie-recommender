@@ -21,7 +21,7 @@ export interface Movie {
   genres: string[] | string;  // Changed to always be string[]
   release_year: number;
   average_rating: number;
-  imageUrl?: string;
+  imageurl?: string;
   imdb_id?: string;
   imdb_rating?: number;
   imdb_votes?: number;
@@ -30,7 +30,7 @@ export interface Movie {
   crew?: string[];   // Changed to always be string[]
 }
 
-export type MovieCreate = Omit<Movie, 'id' | 'imageUrl' | 'trailer_url' | 'cast' | 'crew'> & {
+export type MovieCreate = Omit<Movie, 'id' | 'imageurl' | 'trailer_url' | 'cast' | 'crew'> & {
   imdb_id?: string;
 };
 

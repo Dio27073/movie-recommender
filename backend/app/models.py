@@ -69,7 +69,7 @@ class Movie(Base):
     description = Column(String(2000), nullable=True)
     genres = Column(String(255), nullable=True)
     release_year = Column(Integer, nullable=False)
-    imageUrl = Column(String(500), nullable=True)
+    imageurl = Column(String(500), nullable=True)
     release_date = Column(DateTime, nullable=True)  # Add this line
     
     # IMDB specific fields
@@ -80,6 +80,7 @@ class Movie(Base):
 
     # Cast and crew
     cast = Column(String(1000), nullable=True)
+    cast_members = Column(String(1000), nullable=True)  # Changed from 'cast' to 'cast_members'
     crew = Column(String(1000), nullable=True)
     
     # Recommendation system specific fields

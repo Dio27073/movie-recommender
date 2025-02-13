@@ -119,7 +119,7 @@ export const MovieDetails: React.FC = () => {
         <div className="md:flex">
           <div className="md:flex-shrink-0">
             <img
-              src={movieData.imageUrl || '/api/placeholder/400/600'}
+              src={movieData.imageurl || '/api/placeholder/400/600'}
               alt={movieData.title}
               className="h-96 w-full object-cover md:w-96"
             />

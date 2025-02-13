@@ -154,7 +154,7 @@ export const MovieDetailsModal = ({
           {/* Movie Poster - Updated container and image styles */}
           <div className="relative h-full min-h-[400px]">
             <img
-              src={movie.imageUrl || '/api/placeholder/400/600'}
+              src={movie.imageurl || '/api/placeholder/400/600'}
               alt={movie.title}
               className="w-full h-full object-cover rounded-lg absolute inset-0"
             />

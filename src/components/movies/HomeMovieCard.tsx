@@ -16,7 +16,7 @@ const HomeMovieCard = ({ movie, onMovieClick }: HomeMovieCardProps) => {
     >
       {/* Poster Image */}
       <img
-        src={movie.imageUrl || '/api/placeholder/200/300'}
+        src={movie.imageurl || '/api/placeholder/200/300'}
         alt={movie.title}
         className="w-full h-96 object-cover"
       />

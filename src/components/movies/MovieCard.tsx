@@ -127,7 +127,7 @@ const GridView = ({ movie, onAddToLibrary, onRemoveFromLibrary, isInLibrary }: V
   <>
     <div className="relative">
       <img
-        src={movie.imageUrl || '/api/placeholder/200/300'}
+        src={movie.imageurl || '/api/placeholder/200/300'}
         alt={movie.title}
         className="w-full h-64 object-cover"
       />
@@ -166,7 +166,7 @@ const GridView = ({ movie, onAddToLibrary, onRemoveFromLibrary, isInLibrary }: V
 const ListView = ({ movie, onAddToLibrary, onRemoveFromLibrary, isInLibrary }: ViewComponentProps) => (
   <>
     <img
-      src={movie.imageUrl || '/api/placeholder/200/300'}
+      src={movie.imageurl || '/api/placeholder/200/300'}
       alt={movie.title}
       className="w-48 h-full object-cover"
     />
@@ -205,7 +205,7 @@ const ListView = ({ movie, onAddToLibrary, onRemoveFromLibrary, isInLibrary }: V
 const CompactView = ({ movie, onAddToLibrary, onRemoveFromLibrary, isInLibrary }: ViewComponentProps) => (
   <div className="flex items-center">
     <img
-      src={movie.imageUrl || '/api/placeholder/200/300'}
+      src={movie.imageurl || '/api/placeholder/200/300'}
       alt={movie.title}
       className="w-12 h-18 rounded-md object-cover"
     />

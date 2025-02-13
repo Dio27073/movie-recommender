@@ -63,9 +63,9 @@ const MovieCard = ({
     <div className="p-4">
       <div className="flex items-start space-x-4">
         <div className="w-24 h-36 bg-gray-200 rounded">
-          {movie.imageUrl && (
+          {movie.imageurl && (
             <img 
-              src={movie.imageUrl} 
+              src={movie.imageurl} 
               alt={movie.title}
               className="w-full h-full object-cover rounded"
             />

@@ -8,7 +8,7 @@ class MovieBase(BaseModel):
     genres: List[str]
     release_year: int
     average_rating: float = Field(default=0.0, ge=0, le=5)
-    imageUrl: Optional[str] = None
+    imageurl: Optional[str] = None
     imdb_id: Optional[str] = None
     imdb_rating: Optional[float] = Field(default=None, ge=0, le=10)
     imdb_votes: Optional[int] = None

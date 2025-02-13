@@ -1,4 +1,5 @@
-from sqlalchemy import create_engine
+from contextlib import contextmanager
+from sqlalchemy import create_engine, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import QueuePool
@@ -6,68 +7,67 @@ from sqlalchemy import text
 import os
 import time
 
-# Get database URL from environment variable
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./movie_recommender.db")
+from dotenv import load_dotenv
+load_dotenv()
 
-# Print the database URL (with credentials removed) for debugging
-safe_url = DATABASE_URL.split("@")[-1] if "@" in DATABASE_URL else DATABASE_URL
-print(f"Connecting to database at: {safe_url}")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Handle special Render PostgreSQL URL format
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+if not DATABASE_URL:
+   raise ValueError("No DATABASE_URL environment variable set")
 
-# Configure engine based on database type
-if DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(
-        DATABASE_URL,
-        connect_args={"check_same_thread": False}
-    )
-else:
-    # PostgreSQL configuration with connection pooling and retry
-    engine = create_engine(
-        DATABASE_URL,
-        poolclass=QueuePool,
-        pool_size=5,
-        max_overflow=10,
-        pool_timeout=30,
-        pool_recycle=1800,
-        pool_pre_ping=True,
-        connect_args={
-            "connect_timeout": 30,
-            "keepalives": 1,
-            "keepalives_idle": 30,
-            "keepalives_interval": 10,
-            "keepalives_count": 5
-        }
-    )
+# Configure engine for Supabase
+engine = create_engine(
+   DATABASE_URL,
+   poolclass=QueuePool,
+   pool_size=20,
+   max_overflow=10,
+   pool_timeout=30,
+   pool_recycle=1800,
+   pool_pre_ping=True,
+   connect_args={
+       "connect_timeout": 30,
+       "application_name": "movie_recommender",
+       "keepalives": 1,
+       "keepalives_idle": 30,
+       "keepalives_interval": 10,
+       "keepalives_count": 5
+   }
+)
+
+# Add event listeners
+@event.listens_for(engine, 'connect')
+def receive_connect(dbapi_connection, connection_record):
+   print("Database connection established")
+
+@event.listens_for(engine, 'checkout')
+def receive_checkout(dbapi_connection, connection_record, connection_proxy):
+   print("Database connection checked out from pool")
+
+@event.listens_for(engine, 'checkin')
+def receive_checkin(dbapi_connection, connection_record):
+   print("Database connection returned to pool")
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def get_db():
-    """Get database session with retry logic"""
-    retries = 5
-    delay = 1
-    last_exception = None
-    
-    for attempt in range(retries):
-        try:
-            db = SessionLocal()
-            # Test the connection
-            db.execute(text("SELECT 1"))
-            return db
-        except Exception as e:
-            last_exception = e
-            if attempt == retries - 1:
-                print(f"Failed to connect to database after {retries} attempts: {str(e)}")
-                raise
-            print(f"Database connection attempt {attempt + 1} failed, retrying in {delay} seconds...")
-            time.sleep(delay)
-            delay *= 2  # Exponential backoff
-        finally:
-            if 'db' in locals():
-                db.close()
-    
-    if last_exception:
-        raise last_exception
+   """Get database session with proper resource management"""
+   db = SessionLocal()
+   try:
+       yield db
+   finally:
+       db.close()
+
+# Additional helper for explicit context management if needed
+@contextmanager
+def get_db_context():
+   """Context manager for database sessions"""
+   db = SessionLocal()
+   try:
+       yield db
+       db.commit()
+   except Exception:
+       db.rollback()
+       raise
+   finally:
+       db.close()

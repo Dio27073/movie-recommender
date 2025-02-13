@@ -60,6 +60,7 @@ class ApiService {
         ...headers,
         ...options.headers,
       },
+      credentials: 'include' as RequestCredentials,  // Add this line
     };
 
     try {
@@ -67,6 +68,7 @@ class ApiService {
       console.log('Request config:', config);
 
       const response = await fetch(url, config);
+      
       console.log('Response status:', response.status);
 
       let data;
@@ -290,17 +292,46 @@ class ApiService {
     time_window?: 'month' | 'week';
     page?: number;
     per_page?: number;
-  } = {}): Promise<MovieResponse> {
-    const queryParams = new URLSearchParams();
-    
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined) {
-        queryParams.append(key, value.toString());
-      }
-    });
-  
-    return this.request<MovieResponse>(`/movies/trending/?${queryParams.toString()}`);
-  }
+} = {}): Promise<MovieResponse> {
+    try {
+        const queryParams = new URLSearchParams();
+        
+        Object.entries(params).forEach(([key, value]) => {
+            if (value !== undefined) {
+                queryParams.append(key, value.toString());
+            }
+        });
+
+        console.log('Fetching trending movies with params:', params);
+        const response = await this.request<MovieResponse>(
+            `/movies/trending/?${queryParams.toString()}`
+        );
+        console.log('Trending movies response:', response);
+
+        if (!response) {
+            throw new Error('Empty response from trending movies endpoint');
+        }
+
+        return {
+            items: response.items || [],
+            total: response.total || 0,
+            page: response.page || 1,
+            total_pages: response.total_pages || 1,
+            has_next: response.has_next || false,
+            has_prev: response.has_prev || false
+        };
+    } catch (error) {
+        console.error('Failed to fetch trending movies:', error);
+        return {
+            items: [],
+            total: 0,
+            page: 1,
+            total_pages: 1,
+            has_next: false,
+            has_prev: false
+        };
+    }
+}
 
 }
 

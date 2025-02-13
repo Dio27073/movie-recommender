@@ -139,7 +139,7 @@ export const LibraryMovieModal = ({
           {/* Left Column - Poster */}
           <div>
             <img
-              src={displayMovie.imageUrl || '/api/placeholder/400/600'}
+              src={displayMovie.imageurl || '/api/placeholder/400/600'}
               alt={displayMovie.title}
               className="w-full rounded-lg shadow-lg object-cover"
             />
