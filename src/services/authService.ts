@@ -30,6 +30,7 @@ class AuthService {
   async login(credentials: LoginCredentials): Promise<User> {
     const response = await api.login(credentials);
     this.setToken(response.access_token);
+    api.setToken(response.access_token); // Explicitly set token in API service
     
     try {
       // Wait a small amount of time to ensure token is set

@@ -24,8 +24,21 @@ interface MovieResponse {
 class ApiService {
   private token: string | null = null;
 
+  constructor() {
+    // Initialize token from storage when service is created
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      this.setToken(token);
+    }
+  }
+
   setToken(token: string | null) {
     this.token = token;
+    if (token) {
+      localStorage.setItem('auth_token', token);
+    } else {
+      localStorage.removeItem('auth_token');
+    }
   }
 
   private async request<T>(

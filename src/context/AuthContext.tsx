@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import authService, { User } from '../services/authService';
+import api from '../services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -17,13 +18,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const initializeAuth = async () => {
-      const storedUser = authService.getUser();
-      if (storedUser && authService.getToken()) {
-        try {
-          const currentUser = await authService.getCurrentUser();
-          setUser(currentUser);
-        } catch (error) {
-          authService.logout();
+      const token = authService.getToken();
+      if (token) {
+        api.setToken(token); // Immediately set the token in ApiService
+        const storedUser = authService.getUser();
+        if (storedUser) {
+          try {
+            const currentUser = await authService.getCurrentUser();
+            setUser(currentUser);
+          } catch (error) {
+            console.error('Error fetching current user:', error);
+            authService.logout();
+          }
         }
       }
       setLoading(false);
