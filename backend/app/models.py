@@ -6,6 +6,12 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
 
+class Configuration(Base):
+    __tablename__ = "configuration"
+
+    key = Column(String, primary_key=True)
+    value = Column(String)
+    
 class Rating(Base):
     __tablename__ = "ratings"
     __table_args__ = (

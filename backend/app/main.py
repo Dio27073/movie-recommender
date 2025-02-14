@@ -12,6 +12,11 @@ from dotenv import load_dotenv
 from datetime import datetime
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError  
+from pydantic import BaseModel  
+
+class LoadMoviesRequest(BaseModel):
+    start_page: int
+    num_pages: int = 10
 
 from . import models, schemas
 from .database import SessionLocal, engine, Base, get_db
@@ -67,6 +72,7 @@ app.include_router(
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
 OMDB_BASE_URL = "http://www.omdbapi.com"
+LAST_PROCESSED_PAGE = 0
 
 # Password hashing configuration
 
@@ -209,20 +215,28 @@ async def fetch_streaming_platforms(tmdb_id: int, region: str = "US") -> list[st
     
 async def load_initial_movies(db: Session, pages: int = 10):
     """Load initial set of movies during startup"""
+    # Get last processed page from database
+    last_page_config = db.query(models.Configuration).filter(
+        models.Configuration.key == "last_processed_page"
+    ).first()
+    
+    last_page = int(last_page_config.value) if last_page_config else 0
+    start_page = last_page + 1
+    end_page = start_page + pages - 1
+
+    print(f"Starting movie import process from page {start_page} to {end_page}...")
     processed_movies = set()
     total_processed = 0
     total_skipped = 0
     page_failures = 0
     max_page_failures = 5
 
-    print(f"Starting initial movie import process for {pages} pages...")
-
-    for page in range(1, pages + 1):
+    for page in range(start_page, end_page + 1):
         page_processed = 0
         page_skipped = 0
         
         try:
-            print(f"\nProcessing page {page}/{pages}")
+            print(f"\nProcessing page {page}")
             
             # Add rate limiting between pages
             time.sleep(1)
@@ -386,6 +400,19 @@ async def load_initial_movies(db: Session, pages: int = 10):
                     page_skipped += 1
                     continue
 
+            if page_processed > 0:  # Only update if we successfully processed some movies
+                # Update last processed page in database
+                if last_page_config:
+                    last_page_config.value = str(page)
+                else:
+                    last_page_config = models.Configuration(
+                        key="last_processed_page",
+                        value=str(page)
+                    )
+                    db.add(last_page_config)
+                
+                print(f"Updated last processed page to {page}")
+
             print(f"Page {page} summary: Processed {page_processed}, Skipped {page_skipped}")
             total_skipped += page_skipped
             
@@ -403,9 +430,10 @@ async def load_initial_movies(db: Session, pages: int = 10):
             print(f"Error processing page {page}: {str(e)}")
             continue
 
-    print(f"\nInitial import process completed:")
+    print(f"\nImport process completed:")
     print(f"Total movies processed: {total_processed}")
     print(f"Total movies skipped: {total_skipped}")
+    print(f"Last processed page: {last_page_config.value if last_page_config else 'None'}")
     return total_processed, total_skipped
 
 @app.get("/test-db")
@@ -602,22 +630,23 @@ def get_movies(
 
 @app.post("/admin/load-more-movies", response_model=dict)
 async def load_more_movies(
-    start_page: int,
-    num_pages: int = 10,
-    current_user: models.User = Depends(get_current_active_user),
+    request: LoadMoviesRequest,
     db: Session = Depends(get_db)
 ):
-    """Load additional movies after initial startup"""
-    # Check if user has admin privileges (you might want to add this check)
-    """if not current_user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to perform this action"
-        )
-    """
     try:
-        end_page = start_page + num_pages
-        total_processed, total_skipped = await load_initial_movies(db, num_pages)
+        # Get current last processed page
+        last_page_config = db.query(models.Configuration).filter(
+            models.Configuration.key == "last_processed_page"
+        ).first()
+        current_page = int(last_page_config.value) if last_page_config else 0
+        
+        total_processed, total_skipped = await load_initial_movies(db, request.num_pages)
+        
+        # Get updated last processed page
+        last_page_config = db.query(models.Configuration).filter(
+            models.Configuration.key == "last_processed_page"
+        ).first()
+        new_last_page = int(last_page_config.value) if last_page_config else current_page
         
         # Initialize recommendation system for new movies
         print("\nUpdating recommendation system...")
@@ -643,9 +672,9 @@ async def load_more_movies(
             "status": "success",
             "processed": total_processed,
             "skipped": total_skipped,
-            "start_page": start_page,
-            "end_page": end_page,
-            "next_page": end_page + 1
+            "start_page": current_page + 1,
+            "end_page": new_last_page,
+            "next_page": new_last_page + 1
         }
     except Exception as e:
         raise HTTPException(
