@@ -6,7 +6,10 @@ import { MovieDetailsModal } from './movies/MovieDetailsModal';
 import apiService from '../services/api';
 import { useAuth } from '../context/AuthContext'; // Add this import
 import { useNavigate } from 'react-router-dom'; // Add this import
-import MovieLoaderButton from './MovieLoaderButton';  // Add this import
+
+// import MovieLoaderButton from './MovieLoaderButton';  // Add this import
+// import IMDBUpdaterButton from './IMDBUpdaterButton';  // Add this import
+// import CleanupButton from './CleanupButton';  // Add this import
 
 const HomePage = () => {
   const [trendingMovies, setTrendingMovies] = useState<Movie[]>([]);
@@ -192,7 +195,13 @@ const HomePage = () => {
         onClose={() => setIsModalOpen(false)}
       />
 
+      {/* 
+
       <MovieLoaderButton />
+      <IMDBUpdaterButton /> 
+      <CleanupButton /> 
+
+      */}
 
     </div>
   );

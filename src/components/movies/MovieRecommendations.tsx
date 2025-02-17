@@ -182,6 +182,19 @@ const MovieRecommendations = () => {
     pagination 
   } = useMovies(currentPage, filters);
 
+  useEffect(() => {
+    // Make a test request to check total movie count
+    fetch(`${import.meta.env.VITE_API_URL}/test-db`)
+      .then(res => res.json())
+      .then(data => {
+        console.log('Total movies in database:', data.movie_count);
+        console.log('Current page movies:', movies.length);
+        console.log('Pagination:', pagination);
+        console.log('Current filters:', filters);
+      })
+      .catch(err => console.error('Error fetching movie count:', err));
+  }, [movies, pagination, filters]);
+
   // Add this effect to reset movies when filters change
   useEffect(() => {
     setCurrentPage(1);

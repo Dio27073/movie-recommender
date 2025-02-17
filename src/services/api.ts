@@ -177,6 +177,9 @@ class ApiService {
   } = {}): Promise<MovieResponse> {
     const queryParams = new URLSearchParams();
 
+    //debug logging
+    console.log('Getting movies with params:', params);
+
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined) {
         if (Array.isArray(value)) {
@@ -187,7 +190,12 @@ class ApiService {
       }
     });
 
-  return this.request<MovieResponse>(`/movies/?${queryParams.toString()}`);
+    const queryString = queryParams.toString();
+    console.log('Final query string:', queryString);
+
+    const response = await this.request<MovieResponse>(`/movies/?${queryString}`);
+    console.log('Movies response:', response);
+    return response;
   }
 
   async recordMovieView(

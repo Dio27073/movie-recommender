@@ -13,6 +13,9 @@ from datetime import datetime
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError  
 from pydantic import BaseModel  
+from difflib import SequenceMatcher
+import re
+import asyncio
 
 class LoadMoviesRequest(BaseModel):
     start_page: int
@@ -75,60 +78,135 @@ OMDB_BASE_URL = "http://www.omdbapi.com"
 LAST_PROCESSED_PAGE = 0
 
 # Password hashing configuration
-
-
 async def fetch_imdb_data(title: str, year: int, retry_count: int = 0) -> dict:
-    """Fetch IMDB data for a movie using OMDB API with exponential backoff"""
+    """
+    Fetch IMDb data by first searching TMDb to get a reliable IMDb ID, then using OMDb.
+    Falls back to a direct OMDb title search if needed.
+    
+    Args:
+        title (str): Movie title.
+        year (int): Release year.
+        retry_count (int): Current retry count for exponential backoff.
+    
+    Returns:
+        dict: Processed IMDb data including id, rating, votes, etc., or None if not found.
+    """
     max_retries = 3
-    base_delay = 0.5  # Start with 1 second delay
+    base_delay = 1.0
+
+    # A helper to perform HTTP requests with exponential backoff.
+    async def fetch_with_backoff(url: str, params: dict, current_retry: int) -> dict:
+        if current_retry > 0:
+            await asyncio.sleep(base_delay * (2 ** (current_retry - 1)))
+        response = requests.get(url, params=params)
+        return response.json()
+
+    # --- Step 1: Use TMDb search to get the IMDb ID ---
+    tmdb_search_url = f"{TMDB_BASE_URL}/search/movie"
+    tmdb_search_params = {
+        "api_key": TMDB_API_KEY,
+        "query": title,
+        "year": year,
+        "language": "en-US"
+    }
+    tmdb_search_result = await fetch_with_backoff(tmdb_search_url, tmdb_search_params, retry_count)
     
+    imdb_id = None
+    if tmdb_search_result.get("results"):
+        # Prefer a result whose release_date matches exactly the given year.
+        best_match = None
+        for result in tmdb_search_result["results"]:
+            release_date = result.get("release_date", "")
+            if release_date:
+                try:
+                    result_year = int(release_date[:4])
+                    if result_year == year:
+                        best_match = result
+                        break
+                except Exception:
+                    continue
+        if not best_match:
+            best_match = tmdb_search_result["results"][0]
+        
+        # Fetch movie details from TMDb to retrieve the IMDb ID.
+        tmdb_movie_id = best_match["id"]
+        tmdb_details_url = f"{TMDB_BASE_URL}/movie/{tmdb_movie_id}"
+        tmdb_details_params = {
+            "api_key": TMDB_API_KEY,
+            "language": "en-US"
+        }
+        tmdb_details = await fetch_with_backoff(tmdb_details_url, tmdb_details_params, retry_count)
+        imdb_id = tmdb_details.get("imdb_id")
+    
+    # --- Step 2: Use the IMDb ID to fetch data from OMDb if available ---
+    if imdb_id:
+        omdb_params = {
+            "apikey": OMDB_API_KEY,
+            "i": imdb_id,
+            "type": "movie"
+        }
+        omdb_data = await fetch_with_backoff(OMDB_BASE_URL, omdb_params, retry_count)
+        if omdb_data.get("Response") == "True":
+            return process_imdb_data(omdb_data)
+    
+    # --- Fallback: Direct title search via OMDb ---
+    search_params = {
+        "apikey": OMDB_API_KEY,
+        "t": title,
+        "y": year,
+        "type": "movie"
+    }
+    omdb_data = await fetch_with_backoff(OMDB_BASE_URL, search_params, retry_count)
+    if omdb_data.get("Response") == "True":
+        return process_imdb_data(omdb_data)
+    
+    # Optionally, try a looser search using 's' if needed.
+    search_params = {
+        "apikey": OMDB_API_KEY,
+        "s": title,
+        "y": year,
+        "type": "movie"
+    }
+    search_result = await fetch_with_backoff(OMDB_BASE_URL, search_params, retry_count)
+    if search_result.get("Response") == "True" and search_result.get("Search"):
+        best_movie = search_result["Search"][0]
+        detail_params = {
+            "apikey": OMDB_API_KEY,
+            "i": best_movie["imdbID"],
+            "type": "movie"
+        }
+        detail_result = await fetch_with_backoff(OMDB_BASE_URL, detail_params, retry_count)
+        if detail_result.get("Response") == "True":
+            return process_imdb_data(detail_result)
+    
+    # Retry if we haven't hit the maximum attempts.
+    if retry_count < max_retries:
+        return await fetch_imdb_data(title, year, retry_count + 1)
+    
+    return None
+
+
+def process_imdb_data(data: dict) -> dict:
+    """Process and validate IMDB API response data"""
     try:
-        if retry_count > 0:
-            # Exponential backoff: 1s, 2s, 4s
-            wait_time = base_delay * (2 ** (retry_count - 1))
-            print(f"Retry #{retry_count} for {title}. Waiting {wait_time} seconds...")
-            time.sleep(wait_time)
-        else:
-            time.sleep(base_delay)  # Regular delay for first attempt
+        imdb_rating = data.get("imdbRating", "N/A")
+        imdb_votes = data.get("imdbVotes", "N/A")
         
-        response = requests.get(
-            OMDB_BASE_URL,
-            params={
-                "apikey": OMDB_API_KEY,
-                "t": title,
-                "y": year,
-                "type": "movie"
-            }
-        )
+        rating = float(imdb_rating) if imdb_rating != "N/A" else None
+        votes = int(imdb_votes.replace(",", "")) if imdb_votes != "N/A" else None
         
-        if response.status_code == 200:
-            data = response.json()
-            
-            # Check for rate limit error
-            if data.get("Response") == "False" and "limit reached" in data.get("Error", "").lower():
-                if retry_count < max_retries:
-                    print(f"Rate limit hit for {title}. Attempting retry #{retry_count + 1}")
-                    return await fetch_imdb_data(title, year, retry_count + 1)
-                else:
-                    print(f"Max retries reached for {title}. Skipping IMDB data.")
-                    return None
-            
-            if data.get("Response") == "True":
-                return {
-                    "imdb_id": data.get("imdbID"),
-                    "imdb_rating": float(data.get("imdbRating", 0)) if data.get("imdbRating") != "N/A" else None,
-                    "imdb_votes": int(data.get("imdbVotes", "0").replace(",", "")) if data.get("imdbVotes") != "N/A" else None
-                }
-            
-            print(f"No IMDB data found for {title} (not a rate limit issue)")
-            return None
-            
-    except Exception as e:
-        print(f"Error fetching IMDB data for {title} ({year}): {str(e)}")
-        if retry_count < max_retries:
-            return await fetch_imdb_data(title, year, retry_count + 1)
+        return {
+            "imdb_id": data.get("imdbID"),
+            "imdb_rating": rating,
+            "imdb_votes": votes,
+            "title": data.get("Title"),
+            "year": data.get("Year"),
+            "match_confidence": "exact" if data.get("Response") == "True" else "partial"
+        }
+    except (ValueError, AttributeError) as e:
+        print(f"Error processing IMDB data: {str(e)}")
         return None
-    
+
 async def fetch_movie_trailer(tmdb_id: int) -> Optional[str]:
     try:
         response = requests.get(
@@ -1088,7 +1166,160 @@ def get_trending_movies(
             "has_next": False,
             "has_prev": page > 1
         }
+
+@app.post("/admin/update-imdb-data")
+async def update_missing_imdb_data(db: Session = Depends(get_db)):
+    try:
+        # Get all movies with missing IMDB data
+        movies = db.query(models.Movie).filter(
+            or_(
+                models.Movie.imdb_id.is_(None),
+                models.Movie.imdb_rating.is_(None)
+            )
+        ).all()
+        
+        print(f"Found {len(movies)} movies with missing IMDB data")
+        
+        updated_count = 0
+        failed_count = 0
+        duplicate_count = 0
+        
+        for movie in movies:
+            try:
+                print(f"Processing {movie.title} ({movie.release_year})...")
+                
+                # Start a new transaction for each movie
+                db.begin_nested()
+                
+                imdb_data = await fetch_imdb_data(movie.title, movie.release_year)
+                
+                if imdb_data and imdb_data["imdb_id"]:
+                    # Check if this IMDB ID already exists
+                    existing_movie = db.query(models.Movie).filter(
+                        models.Movie.imdb_id == imdb_data["imdb_id"],
+                        models.Movie.id != movie.id  # Exclude current movie
+                    ).first()
+                    
+                    if existing_movie:
+                        print(f"Duplicate found for {movie.title}. Existing movie: {existing_movie.title}")
+                        duplicate_count += 1
+                        
+                        # If the existing movie has better data, keep it and delete the current one
+                        if (existing_movie.imdb_rating is not None and 
+                            (movie.imdb_rating is None or existing_movie.imdb_rating > movie.imdb_rating)):
+                            db.delete(movie)
+                            print(f"Deleted duplicate movie: {movie.title}")
+                        else:
+                            # Current movie has better data, update it and delete the existing one
+                            movie.imdb_id = imdb_data["imdb_id"]
+                            movie.imdb_rating = imdb_data["imdb_rating"]
+                            movie.imdb_votes = imdb_data["imdb_votes"]
+                            db.delete(existing_movie)
+                            print(f"Updated current movie and deleted duplicate: {existing_movie.title}")
+                            updated_count += 1
+                    else:
+                        # No duplicate, just update
+                        movie.imdb_id = imdb_data["imdb_id"]
+                        movie.imdb_rating = imdb_data["imdb_rating"]
+                        movie.imdb_votes = imdb_data["imdb_votes"]
+                        updated_count += 1
+                        print(f"Updated {movie.title} with IMDB rating: {imdb_data['imdb_rating']}")
+                else:
+                    failed_count += 1
+                    print(f"Could not find IMDB data for {movie.title}")
+                
+                # Commit this movie's transaction
+                db.commit()
+                
+                # Add a small delay to avoid rate limiting
+                time.sleep(1)
+                
+            except Exception as e:
+                print(f"Error updating {movie.title}: {str(e)}")
+                db.rollback()
+                failed_count += 1
+                continue
+        
+        return {
+            "status": "success",
+            "total_processed": len(movies),
+            "updated": updated_count,
+            "failed": failed_count,
+            "duplicates_handled": duplicate_count
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating IMDB data: {str(e)}"
+        )
     
+
+@app.post("/admin/cleanup-duplicates")
+async def cleanup_duplicate_movies(db: Session = Depends(get_db)):
+    try:
+        # Find movies with the same title and release year
+        duplicate_query = """
+            WITH duplicates AS (
+                SELECT title, release_year, COUNT(*) as cnt,
+                       array_agg(id) as ids,
+                       array_agg(imdb_rating) as ratings
+                FROM movies
+                GROUP BY title, release_year
+                HAVING COUNT(*) > 1
+            )
+            SELECT * FROM duplicates;
+        """
+        
+        result = db.execute(text(duplicate_query))
+        duplicates = result.fetchall()
+        
+        cleaned_count = 0
+        
+        for dup in duplicates:
+            try:
+                # Get all duplicate movies
+                movies = db.query(models.Movie).filter(
+                    models.Movie.id.in_(dup.ids)
+                ).all()
+                
+                # Keep the one with the highest IMDB rating or most complete data
+                best_movie = max(movies, key=lambda m: (
+                    (m.imdb_rating or 0),
+                    1 if m.imdb_id else 0,
+                    1 if m.trailer_url else 0,
+                    len(m.genres.split(',')) if m.genres else 0
+                ))
+                
+                # Delete others
+                for movie in movies:
+                    if movie.id != best_movie.id:
+                        db.delete(movie)
+                        cleaned_count += 1
+                
+                db.commit()
+                print(f"Cleaned up duplicates for: {dup.title} ({dup.release_year})")
+                
+            except Exception as e:
+                print(f"Error cleaning up {dup.title}: {str(e)}")
+                db.rollback()
+                continue
+        
+        return {
+            "status": "success",
+            "duplicates_found": len(duplicates),
+            "movies_removed": cleaned_count
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error cleaning up duplicates: {str(e)}"
+        )
+    
+
 @app.delete("/api/movies/{movie_id}/view")
 async def remove_from_library(
     movie_id: int,
