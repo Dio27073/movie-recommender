@@ -6,6 +6,7 @@ export type SortOption =
   | 'release_date_asc' 
   | 'imdb_rating_desc' 
   | 'imdb_rating_asc' 
+  | 'random'
   | 'title_asc' 
   | 'title_desc';
 
@@ -68,6 +69,7 @@ export interface FilterParams {
   page?: number;
   per_page?: number;
   sort?: SortOption;
+  randomSeed?: number;  
   view?: ViewType;
   castCrew?: Set<string>;
   searchQuery?: string;
@@ -94,7 +96,7 @@ export type FilterValue =
   | { type: 'yearRange'; value: [number, number] }
   | { type: 'ratingRange'; value: [number, number] }
   | { type: 'view'; value: ViewType }
-  | { type: 'sort'; value: SortOption }
+  | { type: 'sort'; value: SortOption; randomSeed?: number }
   | { type: 'castCrew'; value: Set<string> }
   | { type: 'contentRating'; value: Set<string> }
   | { type: 'moodTags'; value: Set<string> }

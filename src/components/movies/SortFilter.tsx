@@ -15,6 +15,7 @@ const sortOptions: { value: SortOption; label: string }[] = [
   { value: 'release_date_asc', label: 'Oldest First' },
   { value: 'title_asc', label: 'Title (A-Z)' },
   { value: 'title_desc', label: 'Title (Z-A)' },
+  { value: 'random', label: 'Random' },
 ];
 
 const SortFilter = ({ sortBy, onSortChange }: SortFilterProps) => {
@@ -34,7 +35,13 @@ const SortFilter = ({ sortBy, onSortChange }: SortFilterProps) => {
   }, []);
 
   const handleSort = (value: SortOption) => {
-    onSortChange('sort', { type: 'sort', value });
+    if (value === 'random') {
+      // Generate a new random seed each time random is selected
+      const randomSeed = Math.floor(Math.random() * 1000000);
+      onSortChange('sort', { type: 'sort', value, randomSeed });
+    } else {
+      onSortChange('sort', { type: 'sort', value });
+    }
     setIsOpen(false);
   };
 
@@ -46,7 +53,13 @@ const SortFilter = ({ sortBy, onSortChange }: SortFilterProps) => {
   return (
     <div className="relative" ref={dropdownRef}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (sortBy === 'random') {
+            // Re-randomize when clicking the button if already in random mode
+            handleSort('random');
+          }
+          setIsOpen(!isOpen);
+        }}
         className={`
           w-full px-4 py-2 rounded-lg flex items-center justify-between
           ${theme === 'light' 

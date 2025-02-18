@@ -67,6 +67,11 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
 
     if (filters.sort) {
       urlParams.append('sort', filters.sort);
+
+      // Add random seed when sort is random
+      if (filters.sort === 'random' && 'randomSeed' in filters) {
+        urlParams.append('random_seed', filters.randomSeed?.toString() || Math.random().toString());
+      }
     }
 
     if (filters.searchQuery?.trim()) {
@@ -101,6 +106,7 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
     filters.yearRange, 
     filters.ratingRange, 
     filters.sort, 
+    filters.sort === 'random' ? filters.randomSeed : undefined,
     filters.castCrew,
     filters.searchQuery,
     filters.searchType,

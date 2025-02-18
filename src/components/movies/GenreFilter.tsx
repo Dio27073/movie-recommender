@@ -47,7 +47,7 @@ const GenreFilter = ({ selectedGenres, onFilterChange }: GenreFilterProps) => {
           w-full px-4 py-2 rounded-lg flex items-center justify-between
           ${theme === 'light' 
             ? 'bg-light-secondary hover:bg-gray-100 border border-gray-200' 
-            : 'bg-dark-secondary hover:bg-gray-950 border border-gray-400'
+            : 'bg-dark-secondary hover:bg-gray-950 border border-gray-800'
           }
         `}
       >
@@ -68,7 +68,7 @@ const GenreFilter = ({ selectedGenres, onFilterChange }: GenreFilterProps) => {
 
       {isOpen && (
         <div className={`
-          absolute z-50 mt-2 w-96 rounded-lg shadow-lg
+          absolute z-50 mt-2 w-full rounded-lg shadow-lg
           ${theme === 'light' 
             ? 'bg-light-secondary border border-gray-200' 
             : 'bg-dark-secondary border border-gray-800'

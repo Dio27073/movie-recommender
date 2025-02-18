@@ -2,6 +2,11 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+
+from sqlalchemy.sql.expression import func
+from fastapi import Request
+from sqlalchemy import cast, Integer
+
 from typing import List, Optional
 import time
 from sqlalchemy import or_, desc, asc
@@ -578,6 +583,7 @@ async def startup_event():
 
 @app.get("/movies/", response_model=schemas.PaginatedMovieResponse)
 def get_movies(
+    request: Request,  # Add this parameter
     page: int = 1, 
     per_page: int = 12, 
     genres: str = None,
@@ -666,6 +672,15 @@ def get_movies(
             query = query.order_by(asc(models.Movie.title))
         elif sort == "title_desc":
             query = query.order_by(desc(models.Movie.title))
+        elif sort == "random":
+            # Get the random seed from query parameters
+            random_seed = request.query_params.get('random_seed')
+            if random_seed:
+                # Use the seed to create a deterministic random order
+                query = query.order_by(func.random(cast(random_seed, Integer)))
+            else:
+                # If no seed provided, use regular random
+                query = query.order_by(func.random())
     
     if release_date_lte:
         release_date = datetime.strptime(release_date_lte, '%Y-%m-%d')
