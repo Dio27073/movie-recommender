@@ -10,7 +10,7 @@ export default {
       colors: {
         dark: {
           primary: '#09090b',    // Almost black
-          secondary: '#18181b',  // Very dark gray
+          secondary: '#121217',  // Very dark gray
           text: '#fafafa'        // Pure white
         },
         light: {
