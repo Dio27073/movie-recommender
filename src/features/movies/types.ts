@@ -190,3 +190,10 @@ export interface LibraryMovie extends Movie {
   rated_at?: string;  // ISO date string
   completed?: boolean;
 }
+
+export interface MovieDetailsResponse {
+  items: Movie[];
+  total: number;
+  page: number;
+  total_pages: number;
+}

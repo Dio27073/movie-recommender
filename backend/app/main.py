@@ -53,9 +53,7 @@ app.add_middleware(
         "http://localhost:8000",    # FastAPI server
         "http://127.0.0.1:5173",
         "http://127.0.0.1:8000",
-        "https://movie-recommender-two-zeta.vercel.app",
-        "https://movie-recommender-git-main-dio27073s-projects.vercel.app",
-        "https://movie-recommender-mpu1s9qgh-dio27073s-projects.vercel.app"
+        "cineverse1.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -1059,7 +1057,17 @@ async def get_user_library(
             viewed_movies_data.append({
                 "movie_id": vh.movie_id,
                 "title": movie.title,
+                "description": movie.description,
+                "release_year": movie.release_year,
+                "average_rating": movie.average_rating,
                 "imageurl": movie.imageurl,
+                "genres": movie.genres.split(",") if movie.genres else [],
+                "imdb_id": movie.imdb_id,
+                "imdb_rating": movie.imdb_rating,
+                "imdb_votes": movie.imdb_votes,
+                "trailer_url": movie.trailer_url,
+                "cast": movie.cast.split(",") if movie.cast else [],
+                "crew": movie.crew.split(",") if movie.crew else [],
                 "watched_at": vh.watched_at,
                 "completed": vh.completed
             })
@@ -1071,7 +1079,17 @@ async def get_user_library(
             rated_movies_data.append({
                 "movie_id": rm.movie_id,
                 "title": movie.title,
+                "description": movie.description,
+                "release_year": movie.release_year,
+                "average_rating": movie.average_rating,
                 "imageurl": movie.imageurl,
+                "genres": movie.genres.split(",") if movie.genres else [],
+                "imdb_id": movie.imdb_id,
+                "imdb_rating": movie.imdb_rating,
+                "imdb_votes": movie.imdb_votes,
+                "trailer_url": movie.trailer_url,
+                "cast": movie.cast.split(",") if movie.cast else [],
+                "crew": movie.crew.split(",") if movie.crew else [],
                 "rating": rm.rating,
                 "rated_at": rm.created_at
             })
@@ -1080,7 +1098,6 @@ async def get_user_library(
         "viewed_movies": viewed_movies_data,
         "rated_movies": rated_movies_data
     }
-
 @app.post("/api/movies/{movie_id}/view")
 async def add_to_library(
     movie_id: int,

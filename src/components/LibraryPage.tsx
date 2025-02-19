@@ -3,23 +3,28 @@ import { Star, Clock, BookMarked, Trash2 } from "lucide-react";
 import { Tabs } from '../components/ui/tabs';
 import { LibraryMovie } from '../features/movies/types';
 import { useLibrary } from '../features/movies/hooks/useLibrary';
-import { LibraryMovieModal } from '../components/movies/LibraryMovieModal';
+import { MovieDetailsModal } from '../components/movies/MovieDetailsModal';
 
-// RemoveButton Component
-const RemoveButton = ({ 
-  movieId, 
-  onRemove 
-}: { 
-  movieId: number;
+interface MovieCardProps {
+  movie: LibraryMovie;
+  type: 'watched' | 'rated';
   onRemove: (movieId: number) => Promise<void>;
-}) => {
+  onClick: () => void;
+}
+
+const MovieCard = ({ 
+  movie, 
+  type,
+  onRemove,
+  onClick
+}: MovieCardProps) => {
   const [isRemoving, setIsRemoving] = useState(false);
 
   const handleRemove = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsRemoving(true);
     try {
-      await onRemove(movieId);
+      await onRemove(movie.movie_id);
     } catch (error) {
       console.error('Failed to remove from library:', error);
     } finally {
@@ -28,74 +33,66 @@ const RemoveButton = ({
   };
 
   return (
-    <button
-      onClick={handleRemove}
-      disabled={isRemoving}
-      className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300
-        disabled:opacity-50 disabled:cursor-not-allowed p-1 rounded-full
-        hover:bg-red-100 dark:hover:bg-red-900 transition-colors duration-200"
-      title="Remove from library"
+    <div 
+      onClick={onClick}
+      className="bg-light-primary dark:bg-dark-primary rounded-lg shadow-md overflow-hidden
+        hover:shadow-lg transition-shadow cursor-pointer group"
     >
-      {isRemoving ? 
-        <span className="text-sm">Removing...</span> :
-        <Trash2 className="w-4 h-4" />
-      }
-    </button>
-  );
-};
+      {/* Image Container */}
+      <div className="relative aspect-[2/3] overflow-hidden">
+        <img 
+          src={movie.imageurl || '/api/placeholder/300/450'} 
+          alt={movie.title}
+          className="w-full h-full object-cover transition-transform duration-300
+            group-hover:scale-105"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+        
+        {/* Remove Button - Top Right */}
+        <button
+          onClick={handleRemove}
+          disabled={isRemoving}
+          className="absolute top-2 right-2 p-2 rounded-full bg-black/40 
+            hover:bg-red-600 text-white transition-colors"
+          title="Remove from library"
+        >
+          {isRemoving ? 
+            <span className="text-sm">...</span> :
+            <Trash2 className="w-4 h-4" />
+          }
+        </button>
 
-// MovieCard component
-const MovieCard = ({ 
-  movie, 
-  type, 
-  onRemove,
-  onClick 
-}: { 
-  movie: LibraryMovie;
-  type: 'watched' | 'rated';
-  onRemove: (movieId: number) => Promise<void>;
-  onClick: () => void;
-}) => (
-  <div 
-    className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer"
-    onClick={onClick}
-  >
-    <div className="p-4">
-      <div className="flex items-start space-x-4">
-        <div className="w-24 h-36 bg-gray-200 rounded">
-          {movie.imageurl && (
-            <img 
-              src={movie.imageurl} 
-              alt={movie.title}
-              className="w-full h-full object-cover rounded"
-            />
-          )}
-        </div>
-        <div className="flex-1">
-          <div className="flex justify-between items-start">
-            <h3 className="font-semibold text-lg">{movie.title}</h3>
-            <RemoveButton movieId={movie.movie_id} onRemove={onRemove} />
+        {/* Movie Info - Bottom */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
+          <h3 className="font-semibold text-lg mb-1 line-clamp-1">
+            {movie.title}
+          </h3>
+          <p className="text-sm text-gray-200 mb-2">
+            {movie.release_year}
+          </p>
+          
+          {/* Watch Date or Rating */}
+          <div className="flex items-center text-sm">
+            {type === 'watched' && movie.watched_at && (
+              <div className="flex items-center">
+                <Clock className="w-4 h-4 mr-1" />
+                {new Date(movie.watched_at).toLocaleDateString()}
+              </div>
+            )}
+            {type === 'rated' && movie.rating && (
+              <div className="flex items-center text-yellow-400">
+                <Star className="w-4 h-4 mr-1 fill-current" />
+                <span>{movie.rating}/5</span>
+              </div>
+            )}
           </div>
-          {type === 'watched' && movie.watched_at && (
-            <div className="flex items-center mt-2 text-gray-600 dark:text-gray-400">
-              <Clock className="w-4 h-4 mr-1" />
-              <span>Watched on {new Date(movie.watched_at).toLocaleDateString()}</span>
-            </div>
-          )}
-          {type === 'rated' && movie.rating && (
-            <div className="flex items-center mt-2 text-yellow-500">
-              <Star className="w-4 h-4 mr-1" />
-              <span>{movie.rating} / 5</span>
-            </div>
-          )}
         </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
-// MovieList component
-const MovieList = ({ 
+const MovieGrid = ({ 
   movies, 
   type,
   onRemove,
@@ -105,19 +102,21 @@ const MovieList = ({
   type: 'watched' | 'rated';
   onRemove: (movieId: number) => Promise<void>;
   onMovieClick: (movie: LibraryMovie) => void;
-}) => (
-  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-    {movies.map((movie) => (
-      <MovieCard 
-        key={movie.movie_id} 
-        movie={movie} 
-        type={type} 
-        onRemove={onRemove}
-        onClick={() => onMovieClick(movie)}
-      />
-    ))}
-  </div>
-);
+}) => {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      {movies.map((movie) => (
+        <MovieCard
+          key={movie.movie_id}
+          movie={movie}
+          type={type}
+          onRemove={onRemove}
+          onClick={() => onMovieClick(movie)}
+        />
+      ))}
+    </div>
+  );
+};
 
 const LibraryPage = () => {
   const { 
@@ -125,7 +124,7 @@ const LibraryPage = () => {
     ratedMovies,
     isLoading, 
     error,
-    removeFromLibrary 
+    removeFromLibrary,
   } = useLibrary();
 
   const [selectedMovie, setSelectedMovie] = useState<LibraryMovie | null>(null);
@@ -142,11 +141,19 @@ const LibraryPage = () => {
   };
 
   if (error) {
-    return <div className="p-8 text-center text-red-600">Error loading library: {error}</div>;
+    return (
+      <div className="p-8 text-center text-red-600 bg-red-50 dark:bg-red-900/10 rounded-lg">
+        Error loading library: {error}
+      </div>
+    );
   }
 
   if (isLoading) {
-    return <div className="p-8 text-center">Loading your library...</div>;
+    return (
+      <div className="p-8 text-center text-light-text/70 dark:text-dark-text/70">
+        Loading your library...
+      </div>
+    );
   }
 
   const tabs = [
@@ -159,14 +166,14 @@ const LibraryPage = () => {
         </div>
       ),
       content: watchedMovies.length > 0 ? (
-        <MovieList 
+        <MovieGrid 
           movies={watchedMovies} 
           type="watched" 
           onRemove={removeFromLibrary}
           onMovieClick={handleMovieClick}
         />
       ) : (
-        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+        <div className="text-center py-8 text-light-text/70 dark:text-dark-text/70">
           You haven't watched any movies yet
         </div>
       )
@@ -180,14 +187,14 @@ const LibraryPage = () => {
         </div>
       ),
       content: ratedMovies.length > 0 ? (
-        <MovieList 
+        <MovieGrid 
           movies={ratedMovies} 
           type="rated" 
           onRemove={removeFromLibrary}
           onMovieClick={handleMovieClick}
         />
       ) : (
-        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+        <div className="text-center py-8 text-light-text/70 dark:text-dark-text/70">
           You haven't rated any movies yet
         </div>
       )
@@ -198,10 +205,10 @@ const LibraryPage = () => {
     <div className="container mx-auto p-6">
       <div className="flex items-center mb-6 space-x-2">
         <BookMarked className="w-6 h-6" />
-        <h1 className="text-2xl font-bold dark:text-white">My Library</h1>
+        <h1 className="text-2xl font-bold text-light-text dark:text-dark-text">My Library</h1>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+      <div className="bg-light-primary dark:bg-dark-primary rounded-lg shadow-lg p-6">
         <Tabs 
           tabs={tabs} 
           defaultTab="watched"
@@ -209,11 +216,10 @@ const LibraryPage = () => {
         />
       </div>
 
-      <LibraryMovieModal
+      <MovieDetailsModal
         movie={selectedMovie}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
-        onRemove={removeFromLibrary}
       />
     </div>
   );
