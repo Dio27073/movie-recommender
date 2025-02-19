@@ -33,7 +33,7 @@ function App() {
       <AuthProvider>
         <ThemeProvider>
           <Router>
-            <div className="min-h-screen transition-colors duration-200">
+            <div className="min-h-screen w-full max-w-none transition-colors duration-200">
               <Navbar />
               <div className="pt-16"> {/* Add padding-top to account for fixed navbar */}
                 <Routes>
