@@ -5,6 +5,7 @@ from difflib import SequenceMatcher
 from dotenv import load_dotenv
 from fastapi import FastAPI, Depends, HTTPException, status, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import os
 from pydantic import BaseModel  
 import requests
@@ -77,25 +78,25 @@ LAST_PROCESSED_PAGE = 0
 
 class SimpleCache:
     def __init__(self, ttl_seconds: int = 300):
-        self.cache: Dict[str, tuple[Any, float]] = {}
+        self.cache: Dict[str, tuple[Any, dict, float]] = {}  # (value, headers, timestamp)
         self.ttl = ttl_seconds
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Optional[tuple[Any, dict]]:
         if key in self.cache:
-            value, timestamp = self.cache[key]
+            value, headers, timestamp = self.cache[key]
             if time.time() - timestamp < self.ttl:
-                return value
+                return value, headers
             else:
                 del self.cache[key]
         return None
 
-    def set(self, key: str, value: Any):
-        self.cache[key] = (value, time.time())
+    def set(self, key: str, value: Any, headers: dict = None):
+        self.cache[key] = (value, headers or {}, time.time())
 
     def cleanup(self):
         current_time = time.time()
         expired_keys = [
-            k for k, (_, timestamp) in self.cache.items() 
+            k for k, (_, _, timestamp) in self.cache.items() 
             if current_time - timestamp >= self.ttl
         ]
         for k in expired_keys:
@@ -627,6 +628,13 @@ async def get_movies(
     release_date_lte: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
+    headers = {
+        "Access-Control-Allow-Origin": "https://cineverse1.vercel.app",
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+    }
+
     # Only cache simple queries without complex filters
     if not any([genres, cast_crew, search, content_rating, mood_tags, streaming_platforms]):
         cache_key = get_cache_key({
@@ -642,7 +650,8 @@ async def get_movies(
         # Try to get from cache
         cached_result = movie_cache.get(cache_key)
         if cached_result:
-            return cached_result
+            data, cached_headers = cached_result
+            return JSONResponse(content=data, headers={**headers, **cached_headers})
         
         # Cleanup expired cache entries periodically
         movie_cache.cleanup()
@@ -759,7 +768,7 @@ async def get_movies(
     if not any([genres, cast_crew, search, content_rating, mood_tags, streaming_platforms]):
         movie_cache.set(cache_key, response_data)
     
-    return response_data
+    return JSONResponse(content=response_data, headers=headers)
 
 @app.post("/admin/load-more-movies", response_model=dict)
 async def load_more_movies(
