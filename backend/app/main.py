@@ -1,26 +1,20 @@
 # backend/app/main.py
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-
-from sqlalchemy.sql.expression import func
-from fastapi import Request
-from sqlalchemy import cast, Integer
-
-from typing import List, Optional
-import time
-from sqlalchemy import or_, desc, asc
-import requests
-import uvicorn
-import os
-from dotenv import load_dotenv
-from datetime import datetime
-from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError  
-from pydantic import BaseModel  
-from difflib import SequenceMatcher
-import re
 import asyncio
+from datetime import datetime
+from difflib import SequenceMatcher
+from dotenv import load_dotenv
+from fastapi import FastAPI, Depends, HTTPException, status, Request, Query
+from fastapi.middleware.cors import CORSMiddleware
+import os
+from pydantic import BaseModel  
+import requests
+from sqlalchemy import or_, desc, asc, func, cast, Integer, text
+from sqlalchemy.orm import Session
+from sqlalchemy.sql.expression import func
+from sqlalchemy.exc import IntegrityError  
+import time
+from typing import List, Optional, Dict, Any
+import uvicorn
 
 class LoadMoviesRequest(BaseModel):
     start_page: int
@@ -79,6 +73,39 @@ TMDB_BASE_URL = "https://api.themoviedb.org/3"
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
 OMDB_BASE_URL = "http://www.omdbapi.com"
 LAST_PROCESSED_PAGE = 0
+
+class SimpleCache:
+    def __init__(self, ttl_seconds: int = 300):
+        self.cache: Dict[str, tuple[Any, float]] = {}
+        self.ttl = ttl_seconds
+
+    def get(self, key: str) -> Optional[Any]:
+        if key in self.cache:
+            value, timestamp = self.cache[key]
+            if time.time() - timestamp < self.ttl:
+                return value
+            else:
+                del self.cache[key]
+        return None
+
+    def set(self, key: str, value: Any):
+        self.cache[key] = (value, time.time())
+
+    def cleanup(self):
+        current_time = time.time()
+        expired_keys = [
+            k for k, (_, timestamp) in self.cache.items() 
+            if current_time - timestamp >= self.ttl
+        ]
+        for k in expired_keys:
+            del self.cache[k]
+
+# Create cache instance with 5-minute TTL
+movie_cache = SimpleCache(ttl_seconds=300)
+
+def get_cache_key(params: dict) -> str:
+    """Generate a string cache key from the query parameters"""
+    return f"{params['page']}:{params['per_page']}:{params['min_year']}:{params['max_year']}:{params['min_rating']}:{params['max_rating']}:{params['sort']}"
 
 # Password hashing configuration
 async def fetch_imdb_data(title: str, year: int, retry_count: int = 0) -> dict:
@@ -580,83 +607,96 @@ async def startup_event():
             db.close()
 
 @app.get("/movies/", response_model=schemas.PaginatedMovieResponse)
-def get_movies(
-    request: Request,  # Add this parameter
-    page: int = 1, 
-    per_page: int = 12, 
-    genres: str = None,
-    min_year: int = None,
-    max_year: int = None,
-    min_rating: float = None,
-    max_rating: float = None, 
-    sort: str = "imdb_rating_desc",
-    cast_crew: str = None,  
-    search: str = None,     
-    search_type: str = None,
-    content_rating: str = None,
-    mood_tags: str = None,
-    streaming_platforms: str = None,
-    release_date_lte: str = None,  # Add this parameter
+async def get_movies(
+    request: Request,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(12, ge=1, le=100),
+    genres: Optional[str] = None,
+    min_year: Optional[int] = None,
+    max_year: Optional[int] = None,
+    min_rating: Optional[float] = None,
+    max_rating: Optional[float] = None,
+    sort: Optional[str] = "imdb_rating_desc",
+    cast_crew: Optional[str] = None,
+    search: Optional[str] = None,
+    search_type: Optional[str] = None,
+    content_rating: Optional[str] = None,
+    mood_tags: Optional[str] = None,
+    streaming_platforms: Optional[str] = None,
+    release_date_lte: Optional[str] = None,
     db: Session = Depends(get_db)
-    ):
-    
-    offset = (page - 1) * per_page
+):
+    # Only cache simple queries without complex filters
+    if not any([genres, cast_crew, search, content_rating, mood_tags, streaming_platforms]):
+        cache_key = get_cache_key({
+            'page': page,
+            'per_page': per_page,
+            'min_year': min_year or '',
+            'max_year': max_year or '',
+            'min_rating': min_rating or '',
+            'max_rating': max_rating or '',
+            'sort': sort or ''
+        })
+        
+        # Try to get from cache
+        cached_result = movie_cache.get(cache_key)
+        if cached_result:
+            return cached_result
+        
+        # Cleanup expired cache entries periodically
+        movie_cache.cleanup()
+
+    # Build query efficiently
     query = db.query(models.Movie)
     
-    # Add cast/crew filtering
-    if cast_crew:
-        query = query.filter(
-            or_(
-                models.Movie.cast.ilike(f"%{cast_crew}%"),
-                models.Movie.crew.ilike(f"%{cast_crew}%")
-            )
-        )
-
-    if search and search_type:
-        if search_type == "cast_crew":
-            query = query.filter(
-                or_(
-                    models.Movie.cast.ilike(f"%{search}%"),
-                    models.Movie.crew.ilike(f"%{search}%")
-                )
-            )
-        elif search_type == "title":
-            query = query.filter(models.Movie.title.ilike(f"%{search}%"))
-            
+    # Apply filters only if they exist
+    filter_conditions = []
+    
     if genres:
         genre_list = genres.split(',')
-        query = query.filter(
-            or_(*[models.Movie.genres.like(f"%{genre}%") for genre in genre_list])
-        )
+        filter_conditions.append(or_(*[models.Movie.genres.like(f"%{genre}%") for genre in genre_list]))
     
     if min_year:
-        query = query.filter(models.Movie.release_year >= min_year)
+        filter_conditions.append(models.Movie.release_year >= min_year)
     if max_year:
-        query = query.filter(models.Movie.release_year <= max_year)
+        filter_conditions.append(models.Movie.release_year <= max_year)
     
     if min_rating is not None:
-        query = query.filter(models.Movie.imdb_rating >= min_rating)
+        filter_conditions.append(models.Movie.imdb_rating >= min_rating)
     if max_rating is not None:
-        query = query.filter(models.Movie.imdb_rating <= max_rating)
+        filter_conditions.append(models.Movie.imdb_rating <= max_rating)
     
-    # Content Rating filter
+    if search and search_type:
+        if search_type == "cast_crew":
+            search_terms = search.split()
+            search_conditions = []
+            for term in search_terms:
+                search_conditions.append(or_(
+                    models.Movie.cast.ilike(f"%{term}%"),
+                    models.Movie.crew.ilike(f"%{term}%")
+                ))
+            filter_conditions.extend(search_conditions)
+        elif search_type == "title":
+            filter_conditions.append(models.Movie.title.ilike(f"%{search}%"))
+    
     if content_rating:
         content_rating_list = content_rating.split(',')
-        query = query.filter(models.Movie.content_rating.in_(content_rating_list))
+        filter_conditions.append(models.Movie.content_rating.in_(content_rating_list))
     
-    # Mood Tags filter
     if mood_tags:
         mood_list = mood_tags.split(',')
-        query = query.filter(
-            or_(*[models.Movie.mood_tags.like(f"%{mood}%") for mood in mood_list])
-        )
+        filter_conditions.append(or_(*[models.Movie.mood_tags.like(f"%{mood}%") for mood in mood_list]))
     
-    # Streaming Platforms filter
     if streaming_platforms:
         platform_list = streaming_platforms.split(',')
-        query = query.filter(
-            or_(*[models.Movie.streaming_platforms.like(f"%{platform}%") for platform in platform_list])
-        )
+        filter_conditions.append(or_(*[models.Movie.streaming_platforms.like(f"%{platform}%") 
+                                     for platform in platform_list]))
+
+    # Apply all filters at once
+    if filter_conditions:
+        query = query.filter(*filter_conditions)
+    
+    # Apply sorting
     if sort:
         if sort == "imdb_rating_desc":
             query = query.order_by(desc(models.Movie.imdb_rating))
@@ -671,46 +711,41 @@ def get_movies(
         elif sort == "title_desc":
             query = query.order_by(desc(models.Movie.title))
         elif sort == "random":
-            # Get the random seed from query parameters
             random_seed = request.query_params.get('random_seed')
             if random_seed:
-                # Use the seed to create a deterministic random order
                 query = query.order_by(func.random(cast(random_seed, Integer)))
             else:
-                # If no seed provided, use regular random
                 query = query.order_by(func.random())
     
-    if release_date_lte:
-        release_date = datetime.strptime(release_date_lte, '%Y-%m-%d')
-        query = query.filter(models.Movie.release_date <= release_date)
-
+    # Get total count efficiently
     total_movies = query.count()
     total_pages = (total_movies + per_page - 1) // per_page
+    
+    # Apply pagination
+    offset = (page - 1) * per_page
     movies = query.offset(offset).limit(per_page).all()
     
-    movie_list = []
-    for db_movie in movies:
-        movie_dict = {
-            "id": db_movie.id,
-            "title": db_movie.title,
-            "description": db_movie.description,
-            "release_year": db_movie.release_year,
-            "average_rating": db_movie.average_rating,
-            "imageurl": db_movie.imageurl,
-            "genres": db_movie.genres.split(",") if db_movie.genres else [],
-            "imdb_id": db_movie.imdb_id,
-            "imdb_rating": db_movie.imdb_rating,
-            "imdb_votes": db_movie.imdb_votes,
-            "trailer_url": db_movie.trailer_url,
-            "cast": db_movie.cast.split(",") if db_movie.cast else [],
-            "crew": db_movie.crew.split(",") if db_movie.crew else [],
-            "content_rating": db_movie.content_rating,
-            "mood_tags": db_movie.mood_tags.split(",") if db_movie.mood_tags else [],
-            "streaming_platforms": db_movie.streaming_platforms.split(",") if db_movie.streaming_platforms else []
-        }
-        movie_list.append(movie_dict)
+    # Process results efficiently
+    movie_list = [{
+        "id": movie.id,
+        "title": movie.title,
+        "description": movie.description,
+        "release_year": movie.release_year,
+        "average_rating": movie.average_rating,
+        "imageurl": movie.imageurl,
+        "genres": movie.genres.split(",") if movie.genres else [],
+        "imdb_id": movie.imdb_id,
+        "imdb_rating": movie.imdb_rating,
+        "imdb_votes": movie.imdb_votes,
+        "trailer_url": movie.trailer_url,
+        "cast": movie.cast.split(",") if movie.cast else [],
+        "crew": movie.crew.split(",") if movie.crew else [],
+        "content_rating": movie.content_rating,
+        "mood_tags": movie.mood_tags.split(",") if movie.mood_tags else [],
+        "streaming_platforms": movie.streaming_platforms.split(",") if movie.streaming_platforms else []
+    } for movie in movies]
     
-    return {
+    response_data = {
         "items": movie_list,
         "total": total_movies,
         "page": page,
@@ -718,6 +753,12 @@ def get_movies(
         "has_next": page < total_pages,
         "has_prev": page > 1
     }
+    
+    # Cache the response if it's a basic query
+    if not any([genres, cast_crew, search, content_rating, mood_tags, streaming_platforms]):
+        movie_cache.set(cache_key, response_data)
+    
+    return response_data
 
 @app.post("/admin/load-more-movies", response_model=dict)
 async def load_more_movies(
