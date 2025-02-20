@@ -54,13 +54,14 @@ class ApiService {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const config = {
+    const config: RequestInit = {
       ...options,
       headers: {
         ...headers,
         ...options.headers,
       },
-      credentials: 'include' as RequestCredentials,  // Add this line
+      credentials: 'include' as RequestCredentials,
+      mode: 'cors' as RequestMode
     };
 
     try {

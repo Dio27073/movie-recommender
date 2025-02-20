@@ -25,3 +25,6 @@ dist-ssr
 .vercel
 venv
 .venv
+
+.env
+.env.development
