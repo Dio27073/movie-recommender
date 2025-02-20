@@ -47,13 +47,15 @@ app.add_middleware(
         "http://localhost:8000",    # FastAPI server
         "http://127.0.0.1:5173",
         "http://127.0.0.1:8000",
-        "cineverse1.vercel.app"
+        "https://cineverse1.vercel.app"  # Your Vercel production domain
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],  # Added this line
+    max_age=600,  # Cache preflight requests for 10 minutes
     allow_origin_regex="https://.*\.vercel\.app/?.*"  # This will allow all vercel.app subdomains
+    
 )
 
 # Include routers

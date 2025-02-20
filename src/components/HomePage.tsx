@@ -1,15 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Search, Star } from 'lucide-react';
+import { Play, Search, Star, Sparkles } from 'lucide-react';
 import MovieCarousel from './MovieCarousel';
 import { Movie } from '../features/movies/types';
 import { MovieDetailsModal } from './movies/MovieDetailsModal';
 import apiService from '../services/api';
-import { useAuth } from '../context/AuthContext'; // Add this import
-import { useNavigate } from 'react-router-dom'; // Add this import
-
-// import MovieLoaderButton from './MovieLoaderButton';  // Add this import
-// import IMDBUpdaterButton from './IMDBUpdaterButton';  // Add this import
-// import CleanupButton from './CleanupButton';  // Add this import
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const HomePage = () => {
   const [trendingMovies, setTrendingMovies] = useState<Movie[]>([]);
@@ -26,48 +22,35 @@ const HomePage = () => {
   useEffect(() => {
     const fetchMovies = async () => {
       try {
-        // Fetch trending movies
-        const trendingResponse = await apiService.getTrendingMovies({
-          time_window: 'week',
-          per_page: 30
-        });
-        setTrendingMovies(trendingResponse.items || []);
+        const [trending, recent, netflix, hulu, funny] = await Promise.all([
+          apiService.getTrendingMovies({ time_window: 'week', per_page: 30 }),
+          apiService.getMovies({
+            sort: 'release_date_desc',
+            release_date_lte: new Date().toISOString().split('T')[0],
+            per_page: 30
+          }),
+          apiService.getMovies({
+            streaming_platforms: 'Netflix',
+            sort: 'imdb_rating_desc',
+            per_page: 30
+          }),
+          apiService.getMovies({
+            streaming_platforms: 'Hulu',
+            sort: 'imdb_rating_desc',
+            per_page: 30
+          }),
+          apiService.getMovies({
+            mood_tags: 'Funny',
+            sort: 'imdb_rating_desc',
+            per_page: 30
+          })
+        ]);
 
-        // Fetch recent releases
-        const currentDate = new Date();
-        const formattedDate = currentDate.toISOString().split('T')[0];
-
-        const recentResponse = await apiService.getMovies({
-          sort: 'release_date_desc',
-          release_date_lte: formattedDate,  // Only movies released on or before today
-          per_page: 30
-        });
-        setRecentMovies(recentResponse.items || []);
-
-        // Fetch Netflix movies using your existing filter parameters
-        const netflixResponse = await apiService.getMovies({
-          streaming_platforms: 'Netflix',
-          sort: 'imdb_rating_desc',
-          per_page: 30
-        });
-        setNetflixMovies(netflixResponse.items || []);
-
-        // Fetch Hulu movies using your existing filter parameters
-        const huluResponse = await apiService.getMovies({
-          streaming_platforms: Array.from(new Set(['Hulu'])).join(','),
-          sort: 'imdb_rating_desc',
-          per_page: 30
-        });
-        setHuluMovies(huluResponse.items || []);
-
-        // Fetch funny movies using your existing filter parameters
-        const funnyResponse = await apiService.getMovies({
-          mood_tags: Array.from(new Set(['Funny'])).join(','),
-          sort: 'imdb_rating_desc',
-          per_page: 30
-        });
-        setFunnyMovies(funnyResponse.items || []);
-
+        setTrendingMovies(trending.items || []);
+        setRecentMovies(recent.items || []);
+        setNetflixMovies(netflix.items || []);
+        setHuluMovies(hulu.items || []);
+        setFunnyMovies(funny.items || []);
       } catch (error) {
         console.error('Error fetching movies:', error);
       } finally {
@@ -88,7 +71,6 @@ const HomePage = () => {
     if (isAuthenticated) {
       navigate('/browse');
     } else {
-      // Navigate to login with a redirect URL
       navigate('/browse', { 
         state: { 
           from: '/browse',
@@ -100,33 +82,50 @@ const HomePage = () => {
 
   return (
     <div className="min-h-screen bg-light-primary dark:bg-dark-primary pt-16">
-      {/* Hero Section */}
-      <div className="relative h-[70vh] bg-gradient-to-b from-gray-900 via-gray-900 to-gray-800">
-        {/* Animated background pattern */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiAxOGMzLjMxIDAgNiAyLjY5IDYgNnMtMi42OSA2LTYgNi02LTIuNjktNi02IDIuNjktNiA2LTZ6TTQgNGg1MnY1Mkg0VjR6IiBzdHJva2U9IiNmZmYiIHN0cm9rZS1vcGFjaXR5PSIuMDUiLz48L2c+PC9zdmc+')] bg-repeat" />
+      {/* Enhanced Hero Section */}
+      <div className="relative h-[70vh] overflow-hidden">
+        {/* Animated gradient background */}
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-900/90 via-pink-900/80 to-teal-800/90" />
+          
+          {/* Animated blobs */}
+          <div className="absolute inset-0 opacity-30">
+            <div className="absolute top-10 left-10 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl animate-blob" />
+            <div className="absolute top-0 right-10 w-72 h-72 bg-teal-500 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000" />
+            <div className="absolute bottom-10 left-20 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000" />
+          </div>
         </div>
-        
-        {/* Accent gradient */}
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-teal-500/20" />
-        
+
         {/* Content */}
-        <div className="relative z-10 h-full flex flex-col justify-center items-center text-white px-4">
-          <h1 className="text-5xl md:text-7xl font-bold text-center mb-6 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-400">
-            Discover Your Next Favorite Movie
-          </h1>
-          <p className="text-xl md:text-2xl text-center mb-8 max-w-2xl text-gray-300">
-            Personalized recommendations based on your taste and viewing history
-          </p>
-          <button
-            onClick={handleExploreClick}
-            className="group relative px-8 py-3 overflow-hidden rounded-full bg-gradient-to-r from-blue-500 to-teal-500 hover:from-blue-600 hover:to-teal-600 text-white font-semibold text-lg transition-all duration-300"
-          >
-            <span className="relative z-10">Start Exploring</span>
-            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-0 bg-gradient-to-r from-blue-600 to-teal-600 transition-transform duration-300" />
-          </button>
+        <div className="relative z-10 h-full flex flex-col justify-center items-center px-4">
+          <div className="max-w-4xl mx-auto text-center">
+            {/* Heading with sparkle icons */}
+            <div className="flex items-center justify-center gap-4 mb-6">
+              <Sparkles className="w-8 h-8 text-pink-400 animate-pulse" />
+              <h1 className="text-5xl md:text-7xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-300 via-purple-300 to-teal-300 tracking-tight">
+                Discover Your Next Favorite Movie
+              </h1>
+              <Sparkles className="w-8 h-8 text-teal-400 animate-pulse" />
+            </div>
+
+            {/* Subheading with glass effect */}
+            <div className="backdrop-blur-sm bg-white/10 rounded-2xl p-6 shadow-2xl">
+              <p className="text-xl md:text-2xl text-gray-100 leading-relaxed">
+                Personalized recommendations based on your taste and viewing history
+              </p>
+            </div>
+
+            {/* Enhanced CTA Button */}
+            <button
+              onClick={handleExploreClick}
+              className="mt-12 group relative px-8 py-4 overflow-hidden rounded-full bg-gradient-to-r from-pink-500 to-teal-500 text-white font-semibold text-lg transform transition-all hover:scale-105 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:ring-offset-transparent"
+            >
+              <span className="relative z-10">Start Exploring</span>
+              <div className="absolute inset-0 -translate-x-full group-hover:translate-x-0 bg-gradient-to-r from-pink-600 to-teal-600 transition-transform duration-300" />
+            </button>
+          </div>
         </div>
-        
+
         {/* Bottom fade */}
         <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-gray-900 to-transparent" />
       </div>
@@ -135,40 +134,20 @@ const HomePage = () => {
       <div className="max-w-7xl mx-auto px-4 py-12">
         {loading ? (
           <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
           </div>
         ) : (
           <>
-            <MovieCarousel
-              title="Trending Movies"
-              movies={trendingMovies}
-              onMovieClick={handleMovieClick}
-            />
-            <MovieCarousel
-              title="Recent Releases"
-              movies={recentMovies}
-              onMovieClick={handleMovieClick}
-            />
-            <MovieCarousel
-              title="Streaming on Netflix"
-              movies={netflixMovies}
-              onMovieClick={handleMovieClick}
-            />
-            <MovieCarousel
-              title="Streaming on Hulu"
-              movies={huluMovies}
-              onMovieClick={handleMovieClick}
-            />
-            <MovieCarousel
-              title="Funny Movies"
-              movies={funnyMovies}
-              onMovieClick={handleMovieClick}
-            />
+            <MovieCarousel title="Trending Movies" movies={trendingMovies} onMovieClick={handleMovieClick} />
+            <MovieCarousel title="Recent Releases" movies={recentMovies} onMovieClick={handleMovieClick} />
+            <MovieCarousel title="Streaming on Netflix" movies={netflixMovies} onMovieClick={handleMovieClick} />
+            <MovieCarousel title="Streaming on Hulu" movies={huluMovies} onMovieClick={handleMovieClick} />
+            <MovieCarousel title="Funny Movies" movies={funnyMovies} onMovieClick={handleMovieClick} />
           </>
         )}
       </div>
 
-      {/* Features Section */}
+      {/* Enhanced Features Section */}
       <div className="py-16 px-4 bg-gray-50 dark:bg-dark-secondary">
         <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
           <FeatureCard
@@ -194,15 +173,6 @@ const HomePage = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />
-
-      {/* 
-
-      <MovieLoaderButton />
-      <IMDBUpdaterButton /> 
-      <CleanupButton /> 
-
-      */}
-
     </div>
   );
 };
@@ -213,7 +183,7 @@ const FeatureCard = ({ icon, title, description }: {
   description: string;
 }) => {
   return (
-    <div className="flex flex-col items-center text-center p-6 bg-white dark:bg-dark-primary rounded-lg shadow-md">
+    <div className="flex flex-col items-center text-center p-6 bg-white dark:bg-dark-primary rounded-lg shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300">
       <div className="text-blue-600 mb-4">
         {icon}
       </div>
