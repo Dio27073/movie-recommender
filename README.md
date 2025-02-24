@@ -5,7 +5,6 @@ A personalized movie recommendation platform that suggests films based on user p
 ## Features
 
 - **Personalized Recommendations**: Uses a hybrid recommendation system combining content-based and collaborative filtering
-- **User Profiles**: Customizable preferences including favorite genres, actors, and content restrictions
 - **Comprehensive Movie Database**: Detailed movie metadata including cast, crew, genres, and technical details
 - **Rating and Review System**: User ratings, written reviews, and community feedback
 - **High Performance**: Fast API response times and support for large-scale concurrent usage
