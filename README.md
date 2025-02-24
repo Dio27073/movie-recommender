@@ -121,36 +121,6 @@ The application will be available at `http://localhost:3000`
 └── docs/
 ```
 
-### API Documentation
-
-API documentation is available at `http://localhost:8000/docs` when running the development server.
-
-### Running Tests
-
-```bash
-# Backend tests
-pytest
-
-# Frontend tests
-cd frontend
-npm test
-```
-
-## Deployment
-
-1. Build the frontend
-```bash
-cd frontend
-npm run build
-```
-
-2. Set up production environment variables
-3. Configure your web server (nginx recommended)
-4. Set up SSL certificates
-5. Deploy using Docker (recommended)
-
-Detailed deployment instructions are available in `docs/deployment.md`
-
 ## Contributing
 
 1. Fork the repository
@@ -159,16 +129,8 @@ Detailed deployment instructions are available in `docs/deployment.md`
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## License
-
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
-
 ## Acknowledgments
 
 - IMDB for movie dataset
 - MovieLens for recommendation training data
 - TMDB for supplementary movie information
-
-## Support
-
-For support, please open an issue in the GitHub repository or contact the development team at support@example.com
