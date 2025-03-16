@@ -21,8 +21,16 @@ interface MovieResponse {
   has_prev: boolean;
 }
 
+// Cache interface
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
 class ApiService {
   private token: string | null = null;
+  private cache: Map<string, CacheEntry<any>> = new Map();
+  private CACHE_TTL: number = 5 * 60 * 1000; // 5 minutes cache TTL
 
   constructor() {
     // Initialize token from storage when service is created
@@ -30,6 +38,9 @@ class ApiService {
     if (token) {
       this.setToken(token);
     }
+    
+    // Setup periodic cache cleanup
+    setInterval(() => this.cleanupCache(), 15 * 60 * 1000); // Clean every 15 minutes
   }
 
   setToken(token: string | null) {
@@ -40,10 +51,31 @@ class ApiService {
       localStorage.removeItem('auth_token');
     }
   }
+  
+  private cleanupCache() {
+    console.log('Cleaning up expired cache entries');
+    const now = Date.now();
+    let expiredCount = 0;
+    
+    this.cache.forEach((entry, key) => {
+      if (now - entry.timestamp > this.CACHE_TTL) {
+        this.cache.delete(key);
+        expiredCount++;
+      }
+    });
+    
+    console.log(`Removed ${expiredCount} expired cache entries`);
+  }
+
+  private getCacheKey(endpoint: string, options: RequestInit): string {
+    // Create a unique key based on the endpoint and request options
+    return `${endpoint}:${JSON.stringify(options)}`;
+  }
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    useCache: boolean = true // New parameter to control caching
   ): Promise<T> {
     const url = `${API_URL}${endpoint}`;
     const headers: Record<string, string> = {
@@ -63,6 +95,20 @@ class ApiService {
       credentials: 'include' as RequestCredentials,
       mode: 'cors' as RequestMode
     };
+
+    // Don't use cache for non-GET requests or if explicitly disabled
+    const shouldUseCache = useCache && (!options.method || options.method === 'GET');
+    
+    if (shouldUseCache) {
+      const cacheKey = this.getCacheKey(endpoint, config);
+      const cachedEntry = this.cache.get(cacheKey);
+      
+      // Return cached data if valid
+      if (cachedEntry && (Date.now() - cachedEntry.timestamp < this.CACHE_TTL)) {
+        console.log(`Using cached data for: ${url}`);
+        return cachedEntry.data;
+      }
+    }
 
     try {
       console.log(`Making request to: ${url}`);
@@ -88,6 +134,16 @@ class ApiService {
         throw new Error((data as ApiError).detail || 'An error occurred');
       }
 
+      // Cache successful GET responses
+      if (shouldUseCache) {
+        const cacheKey = this.getCacheKey(endpoint, config);
+        this.cache.set(cacheKey, {
+          data: data,
+          timestamp: Date.now()
+        });
+        console.log(`Cached response for: ${url}`);
+      }
+
       return data as T;
     } catch (error) {
       console.error('Request error:', error);
@@ -96,26 +152,43 @@ class ApiService {
   }
 
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
+    // Don't cache authentication requests
     return this.request<AuthResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(credentials)
-    });
+    }, false);
   }
 
   async register(credentials: RegisterCredentials): Promise<AuthResponse> {
+    // Don't cache registration requests
     return this.request<AuthResponse>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(credentials)
-    });
+    }, false);
   }
 
   async getCurrentUser(): Promise<User> {
     if (!this.token) {
       throw new Error('No authentication token');
     }
-    return this.request<User>('/auth/me', {
+    // Cache current user for 1 minute
+    const currentUserCacheTTL = 60 * 1000; 
+    const cachedUser = this.cache.get('currentUser');
+    
+    if (cachedUser && (Date.now() - cachedUser.timestamp < currentUserCacheTTL)) {
+      return cachedUser.data;
+    }
+    
+    const user = await this.request<User>('/auth/me', {
       method: 'GET'
     });
+    
+    this.cache.set('currentUser', {
+      data: user,
+      timestamp: Date.now()
+    });
+    
+    return user;
   }
 
   async getRecommendations(filters: RecommendationFilters = {}): Promise<RecommendationResponse> {
@@ -172,13 +245,13 @@ class ApiService {
     min_year?: number;
     genres?: string[];
     page?: number;
-    streaming_platforms?: string;  // Add this
-    mood_tags?: string; 
-    release_date_lte?: string;  // Add this line       
+    streaming_platforms?: string;
+    mood_tags?: string;
+    release_date_lte?: string;
   } = {}): Promise<MovieResponse> {
     const queryParams = new URLSearchParams();
 
-    //debug logging
+    // Debug logging
     console.log('Getting movies with params:', params);
 
     Object.entries(params).forEach(([key, value]) => {
@@ -194,7 +267,15 @@ class ApiService {
     const queryString = queryParams.toString();
     console.log('Final query string:', queryString);
 
-    const response = await this.request<MovieResponse>(`/movies/?${queryString}`);
+    // Don't cache random sorts
+    const shouldCache = !params.sort || params.sort !== 'random';
+    
+    const response = await this.request<MovieResponse>(
+      `/movies/?${queryString}`, 
+      {}, 
+      shouldCache
+    );
+    
     console.log('Movies response:', response);
     return response;
   }
@@ -207,10 +288,18 @@ class ApiService {
       throw new Error('Authentication required');
     }
     
+    // Clear recommendations cache when recording a view
+    this.cache.forEach((_, key) => {
+      if (key.includes('/api/recommender/recommendations/') || 
+          key.includes('/api/recommender/recently-watched')) {
+        this.cache.delete(key);
+      }
+    });
+    
     return this.request<void>(`/movies/${movieId}/view`, {
       method: 'POST',
       body: JSON.stringify(data),
-    });
+    }, false); // Don't cache POST requests
   }
 
   async updateRecommendationPreferences(preferences: UserPreferences): Promise<void> {
@@ -218,17 +307,34 @@ class ApiService {
       throw new Error('Authentication required');
     }
 
+    // Clear all recommendation caches when updating preferences
+    this.cache.forEach((_, key) => {
+      if (key.includes('/api/recommender/')) {
+        this.cache.delete(key);
+      }
+    });
+
     return this.request<void>('/api/recommender/preferences', {
       method: 'PUT',
       body: JSON.stringify(preferences),
-    });
+    }, false);
   }
 
   async rateMovie(rating: Rating): Promise<RatingResponse> {
-    return this.request<RatingResponse>(`/movies/${rating.movie_id}/rate`, {
+    // Don't cache rating requests and invalidate affected movie caches
+    const response = await this.request<RatingResponse>(`/movies/${rating.movie_id}/rate`, {
       method: 'POST',
       body: JSON.stringify(rating)
+    }, false);
+    
+    // Invalidate any cached data for this movie
+    this.cache.forEach((_, key) => {
+      if (key.includes(`${rating.movie_id}`)) {
+        this.cache.delete(key);
+      }
     });
+    
+    return response;
   }
 
   async getTrendingRecommendations(): Promise<Movie[]> {
@@ -239,7 +345,6 @@ class ApiService {
     return this.request<Movie[]>(`/api/recommender/genre/${genre}`);
   }
 
-  // View History Methods
   async getViewingHistory(): Promise<{
     movie_id: number;
     watched_at: string;
@@ -253,7 +358,6 @@ class ApiService {
     return this.request<any[]>('/movies/history');
   }
 
-  // User Preferences Methods
   async getUserPreferences(): Promise<UserPreferences> {
     if (!this.token) {
       throw new Error('Authentication required');
@@ -269,16 +373,22 @@ class ApiService {
   }
   
   async addToLibrary(movieId: number) {
+    // Clear library cache
+    this.cache.delete('/api/users/me/library');
+    
     return this.request<any>(`/api/movies/${movieId}/view`, {
       method: 'POST',
       body: JSON.stringify({ completed: true })
-    });
+    }, false);
   }
   
   async removeFromLibrary(movieId: number) {
+    // Clear library cache
+    this.cache.delete('/api/users/me/library');
+    
     return this.request<any>(`/api/movies/${movieId}/view`, {
       method: 'DELETE'
-    });
+    }, false);
   }
   
   async getMovieDetails(movieId: number) {
@@ -301,7 +411,7 @@ class ApiService {
     time_window?: 'month' | 'week';
     page?: number;
     per_page?: number;
-} = {}): Promise<MovieResponse> {
+  } = {}): Promise<MovieResponse> {
     try {
         const queryParams = new URLSearchParams();
         
@@ -340,8 +450,7 @@ class ApiService {
             has_prev: false
         };
     }
-}
-
+  }
 }
 
 // Create a singleton instance

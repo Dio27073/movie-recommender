@@ -11,6 +11,10 @@ interface PaginationData {
   hasPrev: boolean;
 }
 
+// Cache for movie data
+const movieCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+
 // Generic debounce hook for any value
 export function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -115,13 +119,34 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
     filters.streamingPlatforms
   ]);
   
+  const getCacheKey = useCallback(() => {
+    return params.toString();
+  }, [params]);
+  
   const fetchMovies = useCallback(async () => {
     setLoading(true);
     setError(null);
     
+    const cacheKey = getCacheKey();
+    
+    // Check if we have cached data and it's not expired
+    const cachedData = movieCache.get(cacheKey);
+    if (cachedData && (Date.now() - cachedData.timestamp < CACHE_TTL)) {
+      console.log('Using cached movie data');
+      setMovies(cachedData.data.items);
+      setPagination({
+        total: cachedData.data.total,
+        totalPages: cachedData.data.total_pages,
+        hasNext: cachedData.data.has_next,
+        hasPrev: cachedData.data.has_prev
+      });
+      setLoading(false);
+      return;
+    }
+    
     try {
       const url = `${import.meta.env.VITE_API_URL}/movies/?${params}`;
-      console.log('Fetching movies with URL:', url); // Add this log
+      console.log('Fetching movies with URL:', url);
       const response = await fetch(url);
       
       if (!response.ok) {
@@ -129,7 +154,13 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
       }
       
       const data = await response.json();
-      console.log('API Response:', data); // Add this log
+      console.log('API Response:', data);
+      
+      // Cache the results
+      movieCache.set(cacheKey, {
+        data: data,
+        timestamp: Date.now()
+      });
       
       setMovies(data.items);
       setPagination({
@@ -145,16 +176,29 @@ export const useMovies = (page: number = 1, filters: FilterParams) => {
     } finally {
       setLoading(false);
     }
-  }, [params]);
+  }, [params, getCacheKey]);
 
   useEffect(() => {
     fetchMovies();
   }, [fetchMovies]);
 
+  // Add a cache cleanup when component unmounts
+  useEffect(() => {
+    return () => {
+      // Clear expired cache entries
+      const now = Date.now();
+      movieCache.forEach((value, key) => {
+        if (now - value.timestamp > CACHE_TTL) {
+          movieCache.delete(key);
+        }
+      });
+    };
+  }, []);
+
   return { movies, loading, error, pagination };
 };
 
-// Movie search hook
+// Movie search hook with caching
 export const useMovieSearch = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -166,9 +210,28 @@ export const useMovieSearch = () => {
     hasPrev: false
   });
 
+  // Cache for search results
+  const searchCache = new Map();
+
   const searchMovies = useCallback(async (query: string, page: number = 1) => {
     if (!query.trim()) {
       setSearchResults([]);
+      return;
+    }
+
+    const cacheKey = `${query}:${page}`;
+    
+    // Check cache
+    const cachedResults = searchCache.get(cacheKey);
+    if (cachedResults && (Date.now() - cachedResults.timestamp < CACHE_TTL)) {
+      console.log('Using cached search results');
+      setSearchResults(cachedResults.data.items);
+      setSearchPagination({
+        total: cachedResults.data.total,
+        totalPages: cachedResults.data.total_pages,
+        hasNext: cachedResults.data.has_next,
+        hasPrev: cachedResults.data.has_prev
+      });
       return;
     }
 
@@ -177,7 +240,7 @@ export const useMovieSearch = () => {
 
     try {
       const response = await fetch(
-        `http://localhost:8000/movies/search/?query=${encodeURIComponent(query)}&page=${page}`
+        `${import.meta.env.VITE_API_URL}/movies/search/?query=${encodeURIComponent(query)}&page=${page}`
       );
       
       if (!response.ok) {
@@ -185,6 +248,12 @@ export const useMovieSearch = () => {
       }
       
       const data = await response.json();
+      
+      // Cache the results
+      searchCache.set(cacheKey, {
+        data: data,
+        timestamp: Date.now()
+      });
       
       setSearchResults(data.items);
       setSearchPagination({
@@ -202,10 +271,23 @@ export const useMovieSearch = () => {
     }
   }, []);
 
+  // Cleanup effect for search cache
+  useEffect(() => {
+    return () => {
+      // Clear expired cache entries
+      const now = Date.now();
+      searchCache.forEach((value, key) => {
+        if (now - value.timestamp > CACHE_TTL) {
+          searchCache.delete(key);
+        }
+      });
+    };
+  }, []);
+
   return { searchMovies, searchResults, loading, error, searchPagination };
 };
 
-
+// The rest of the hooks remain mostly unchanged
 export const useAllGenres = () => {
   const [genres, setGenres] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -214,7 +296,7 @@ export const useAllGenres = () => {
   useEffect(() => {
     const fetchGenres = async () => {
       try {
-        const response = await fetch('/api/genres'); // Adjust the endpoint as needed
+        const response = await fetch('/api/genres'); 
         if (!response.ok) throw new Error('Failed to fetch genres');
         const data = await response.json();
         setGenres(data);
@@ -231,7 +313,7 @@ export const useAllGenres = () => {
   return { genres, isLoading, error };
 };
 
-// Movie rating hook
+// Movie rating hook remains the same
 export const useRateMovie = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -255,25 +337,25 @@ export const useRateMovie = () => {
   return { rateMovie, loading, error };
 };
 
+// The React-Query hooks remain unchanged since they handle caching internally
 export const useMovieRecommendations = (filters: RecommendationFilters = {}) => {
   return useQuery({
     queryKey: ['recommendations', filters],
     queryFn: () => recommendationService.getRecommendations(filters),
-    placeholderData: (previousData) => previousData, // Replace keepPreviousData with placeholderData
+    placeholderData: (previousData) => previousData,
     staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
   });
 };
 
-// Hook for getting similar movies
 export const useSimilarMovies = (movieId: number) => {
   return useQuery({
     queryKey: ['similar-movies', movieId],
     queryFn: () => recommendationService.getSimilarMovies(movieId),
-    enabled: !!movieId, // Only run if movieId is provided
+    enabled: !!movieId,
+    staleTime: 10 * 60 * 1000, // Cache similar movies for 10 minutes
   });
 };
 
-// Hook for getting recently watched recommendations
 export const useRecentlyWatchedRecommendations = () => {
   return useQuery({
     queryKey: ['recently-watched-recommendations'],
@@ -282,7 +364,6 @@ export const useRecentlyWatchedRecommendations = () => {
   });
 };
 
-// Hook for recording movie views
 export const useRecordMovieView = () => {
   const queryClient = useQueryClient();
 
@@ -295,27 +376,23 @@ export const useRecordMovieView = () => {
       data: { completed: boolean; watch_duration?: number; }
     }) => recommendationService.recordMovieView(movieId, data),
     onSuccess: () => {
-      // Invalidate relevant queries to trigger refetch
       queryClient.invalidateQueries({ queryKey: ['recommendations'] });
       queryClient.invalidateQueries({ queryKey: ['recently-watched-recommendations'] });
     },
   });
 };
 
-// Hook for updating user preferences
 export const useUpdatePreferences = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: recommendationService.updatePreferences,
     onSuccess: () => {
-      // Invalidate recommendations to get fresh data based on new preferences
       queryClient.invalidateQueries({ queryKey: ['recommendations'] });
     },
   });
 };
 
-// Hook for getting trending recommendations
 export const useTrendingRecommendations = () => {
   return useQuery({
     queryKey: ['trending-recommendations'],
@@ -324,7 +401,6 @@ export const useTrendingRecommendations = () => {
   });
 };
 
-// Hook for getting genre-based recommendations
 export const useGenreRecommendations = (genre: string) => {
   return useQuery({
     queryKey: ['genre-recommendations', genre],
@@ -334,7 +410,6 @@ export const useGenreRecommendations = (genre: string) => {
   });
 };
 
-// Custom hook to combine recommendation sources
 export const useCombinedRecommendations = (filters: RecommendationFilters = {}) => {
   const personalizedRecs = useMovieRecommendations(filters);
   const trendingRecs = useTrendingRecommendations();
