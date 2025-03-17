@@ -2,6 +2,7 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from contextlib import contextmanager
 
 from sqlalchemy.sql.expression import func
 from fastapi import Request
@@ -84,6 +85,19 @@ TMDB_BASE_URL = "https://api.themoviedb.org/3"
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
 OMDB_BASE_URL = "http://www.omdbapi.com"
 LAST_PROCESSED_PAGE = 0
+
+def get_db_context():
+    """Context manager for database sessions"""
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception as e:
+        print(f"Database context error: {str(e)}")
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 # Password hashing configuration
 async def fetch_imdb_data(title: str, year: int, retry_count: int = 0) -> dict:
@@ -193,25 +207,25 @@ async def fetch_imdb_data(title: str, year: int, retry_count: int = 0) -> dict:
     
     return None
 
-def db_keep_alive():
-    """Background thread to keep the database connection alive"""
-    print("Starting database keep-alive thread")
-    
-    # Wait for initial app startup to complete
-    time.sleep(10)
-    
+async def db_keep_alive():
+    """Async background task to keep the database connection alive."""
+    print("Starting database keep-alive task")
+    await asyncio.sleep(10)  # Initial wait
+
+    global keep_alive_running
     while keep_alive_running:
         try:
-            # Get a new DB session
-            with SessionLocal() as db:
-                # Execute a simple query
-                result = db.execute(text("SELECT 1")).scalar()
-                print(f"Keep-alive ping executed: {result}", flush=True)
+            # Use async context manager with proper session handling
+            db = SessionLocal()
+            try:
+                db.execute(text("SELECT 1"))
+                print(f"Keep-alive ping executed at {datetime.utcnow().isoformat()}")
+            finally:
+                db.close()
         except Exception as e:
-            print(f"Error in keep-alive ping: {str(e)}", flush=True)
-        
-        # Sleep for 20 minutes (slightly less than typical 30 minute timeout)
-        time.sleep(20 * 60)
+            print(f"Database keep-alive error: {str(e)}")
+
+        await asyncio.sleep(120)  # Ping every 2 minutes instead of 10
 
 def process_imdb_data(data: dict) -> dict:
     """Process and validate IMDB API response data"""
@@ -583,22 +597,22 @@ async def startup_event():
         except Exception as e:
             if i == retries - 1:
                 print(f"Failed to initialize database after {retries} attempts: {str(e)}")
+                await asyncio.sleep(5)
                 raise
             print(f"Database connection attempt {i + 1} failed, retrying in 5 seconds...")
             time.sleep(5)
     
     try:
-        # Initialize movies if database is empty
-        movie_count = db.query(models.Movie).count()
-        print(f"Current movie count in database: {movie_count}")
+        # Start the keep-alive task properly using create_task
+        # This schedules the coroutine to run in the background
+        # and returns control immediately
+        asyncio.create_task(db_keep_alive())
+        print("Database keep-alive task started")
         
-        if movie_count == 0:
-            # Only load first 10 pages during startup
-            await load_initial_movies(db, pages=10)
-            
-        keep_alive_thread = threading.Thread(target=db_keep_alive, daemon=True)
-        keep_alive_thread.start()
-        print("Database keep-alive thread started")
+        # Directly await the recommender initialization
+        # This will wait for completion before proceeding
+        await init_recommender_async()
+        print("Recommender initialization completed")
     except Exception as e:
         print(f"Error during startup: {str(e)}")
         raise
@@ -606,6 +620,47 @@ async def startup_event():
         if db:
             db.close()
 
+async def init_recommender_async():
+    """Initialize the recommender system asynchronously"""
+    try:
+        # Use regular session management instead of context manager
+        db = SessionLocal()
+        try:
+            # Check if we need to load initial movies
+            movie_count = db.query(models.Movie).count()
+            print(f"Current movie count in database: {movie_count}")
+            
+            if movie_count == 0:
+                # Only load first 2 pages for initial data
+                await load_initial_movies(db, pages=2)
+                
+            # Initialize recommender with available data
+            global recommender
+            movies = db.query(models.Movie).all()
+            movies_data = [
+                {
+                    "id": m.id,
+                    "title": m.title,
+                    "genres": m.genres,
+                    "director": m.crew.split(",")[0] if m.crew else "",
+                    "cast": m.cast,
+                    "description": m.description,
+                    "keywords": m.keywords,
+                    "mood_tags": m.mood_tags,
+                    "content_rating": m.content_rating,
+                    "streaming_platforms": m.streaming_platforms
+                } for m in movies
+            ]
+            recommender.prepare_content_features(movies_data)
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"Error in background initialization: {str(e)}")
+        
 @app.get("/movies/", response_model=schemas.PaginatedMovieResponse)
 def get_movies(
     request: Request,  # Add this parameter

@@ -19,10 +19,10 @@ try:
     engine = create_engine(
         DATABASE_URL,
         # Session pooler specific settings
-        pool_size=20,  # Increased for session pooler
-        max_overflow=10,
+        pool_size=5,  # Increased for session pooler
+        max_overflow=2,
         pool_timeout=30,
-        pool_recycle=300,  # 5 minutes
+        pool_recycle=180,  # 5 minutes
         pool_pre_ping=True,
         connect_args={
             "sslmode": "require",
