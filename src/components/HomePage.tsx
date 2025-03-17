@@ -8,57 +8,117 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const HomePage = () => {
+  // Movie data states
   const [trendingMovies, setTrendingMovies] = useState<Movie[]>([]);
   const [recentMovies, setRecentMovies] = useState<Movie[]>([]);
   const [netflixMovies, setNetflixMovies] = useState<Movie[]>([]);
   const [huluMovies, setHuluMovies] = useState<Movie[]>([]);
   const [funnyMovies, setFunnyMovies] = useState<Movie[]>([]);
+  
+  // Individual loading states for each section
+  const [loadingStates, setLoadingStates] = useState({
+    trending: true,
+    recent: true,
+    netflix: true,
+    hulu: true,
+    funny: true
+  });
+  
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchMovies = async () => {
+    // Load each section independently instead of using Promise.all
+    
+    // Trending Movies
+    const fetchTrending = async () => {
       try {
-        const [trending, recent, netflix, hulu, funny] = await Promise.all([
-          apiService.getTrendingMovies({ time_window: 'week', per_page: 30 }),
-          apiService.getMovies({
-            sort: 'release_date_desc',
-            release_date_lte: new Date().toISOString().split('T')[0],
-            per_page: 30
-          }),
-          apiService.getMovies({
-            streaming_platforms: 'Netflix',
-            sort: 'imdb_rating_desc',
-            per_page: 30
-          }),
-          apiService.getMovies({
-            streaming_platforms: 'Hulu',
-            sort: 'imdb_rating_desc',
-            per_page: 30
-          }),
-          apiService.getMovies({
-            mood_tags: 'Funny',
-            sort: 'imdb_rating_desc',
-            per_page: 30
-          })
-        ]);
-
-        setTrendingMovies(trending.items || []);
-        setRecentMovies(recent.items || []);
-        setNetflixMovies(netflix.items || []);
-        setHuluMovies(hulu.items || []);
-        setFunnyMovies(funny.items || []);
+        console.log('Fetching trending movies...');
+        const data = await apiService.getTrendingMovies({ time_window: 'week', per_page: 30 });
+        setTrendingMovies(data.items || []);
       } catch (error) {
-        console.error('Error fetching movies:', error);
+        console.error('Error fetching trending movies:', error);
       } finally {
-        setLoading(false);
+        setLoadingStates(prev => ({ ...prev, trending: false }));
+      }
+    };
+    
+    // Recent Movies
+    const fetchRecent = async () => {
+      try {
+        console.log('Fetching recent movies...');
+        const data = await apiService.getMovies({
+          sort: 'release_date_desc',
+          release_date_lte: new Date().toISOString().split('T')[0],
+          per_page: 30
+        });
+        setRecentMovies(data.items || []);
+      } catch (error) {
+        console.error('Error fetching recent movies:', error);
+      } finally {
+        setLoadingStates(prev => ({ ...prev, recent: false }));
+      }
+    };
+    
+    // Netflix Movies
+    const fetchNetflix = async () => {
+      try {
+        console.log('Fetching Netflix movies...');
+        const data = await apiService.getMovies({
+          streaming_platforms: 'Netflix',
+          sort: 'imdb_rating_desc',
+          per_page: 30
+        });
+        setNetflixMovies(data.items || []);
+      } catch (error) {
+        console.error('Error fetching Netflix movies:', error);
+      } finally {
+        setLoadingStates(prev => ({ ...prev, netflix: false }));
+      }
+    };
+    
+    // Hulu Movies
+    const fetchHulu = async () => {
+      try {
+        console.log('Fetching Hulu movies...');
+        const data = await apiService.getMovies({
+          streaming_platforms: 'Hulu',
+          sort: 'imdb_rating_desc',
+          per_page: 30
+        });
+        setHuluMovies(data.items || []);
+      } catch (error) {
+        console.error('Error fetching Hulu movies:', error);
+      } finally {
+        setLoadingStates(prev => ({ ...prev, hulu: false }));
+      }
+    };
+    
+    // Funny Movies
+    const fetchFunny = async () => {
+      try {
+        console.log('Fetching funny movies...');
+        const data = await apiService.getMovies({
+          mood_tags: 'Funny',
+          sort: 'imdb_rating_desc',
+          per_page: 30
+        });
+        setFunnyMovies(data.items || []);
+      } catch (error) {
+        console.error('Error fetching funny movies:', error);
+      } finally {
+        setLoadingStates(prev => ({ ...prev, funny: false }));
       }
     };
 
-    fetchMovies();
+    // Start all fetches in parallel - but handle independently
+    fetchTrending();
+    fetchRecent();
+    fetchNetflix();
+    fetchHulu();
+    fetchFunny();
   }, []);
 
   const handleMovieClick = (movie: Movie) => {
@@ -79,6 +139,22 @@ const HomePage = () => {
       });
     }
   };
+
+  // Skeleton loader for carousels
+  const CarouselSkeleton = () => (
+    <div className="mb-12">
+      <div className="w-48 h-7 bg-gray-300 dark:bg-gray-700 rounded mb-4"></div>
+      <div className="flex gap-4 overflow-x-auto pb-4">
+        {Array(5).fill(0).map((_, i) => (
+          <div key={i} className="flex-shrink-0 w-48 animate-pulse">
+            <div className="w-full h-72 bg-gray-300 dark:bg-gray-700 rounded-lg mb-2"></div>
+            <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-3/4 mb-1"></div>
+            <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-1/2"></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-light-primary dark:bg-dark-primary pt-16">
@@ -130,21 +206,63 @@ const HomePage = () => {
         <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-gray-900 to-transparent" />
       </div>
 
-      {/* Movie Carousels Section */}
+      {/* Movie Carousels Section - Now with Progressive Loading */}
       <div className="max-w-7xl mx-auto px-4 py-12">
-        {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
-          </div>
-        ) : (
-          <>
-            <MovieCarousel title="Trending Movies" movies={trendingMovies} onMovieClick={handleMovieClick} />
-            <MovieCarousel title="Recent Releases" movies={recentMovies} onMovieClick={handleMovieClick} />
-            <MovieCarousel title="Streaming on Netflix" movies={netflixMovies} onMovieClick={handleMovieClick} />
-            <MovieCarousel title="Streaming on Hulu" movies={huluMovies} onMovieClick={handleMovieClick} />
-            <MovieCarousel title="Funny Movies" movies={funnyMovies} onMovieClick={handleMovieClick} />
-          </>
-        )}
+        {/* Each section loads independently */}
+        <div className="mb-8">
+          {loadingStates.trending 
+            ? <CarouselSkeleton /> 
+            : <MovieCarousel 
+                title="Trending Movies" 
+                movies={trendingMovies} 
+                onMovieClick={handleMovieClick}
+              />
+          }
+        </div>
+        
+        <div className="mb-8">
+          {loadingStates.recent 
+            ? <CarouselSkeleton /> 
+            : <MovieCarousel 
+                title="Recent Releases" 
+                movies={recentMovies} 
+                onMovieClick={handleMovieClick}
+              />
+          }
+        </div>
+        
+        <div className="mb-8">
+          {loadingStates.netflix 
+            ? <CarouselSkeleton /> 
+            : <MovieCarousel 
+                title="Streaming on Netflix" 
+                movies={netflixMovies} 
+                onMovieClick={handleMovieClick}
+              />
+          }
+        </div>
+        
+        <div className="mb-8">
+          {loadingStates.hulu 
+            ? <CarouselSkeleton /> 
+            : <MovieCarousel 
+                title="Streaming on Hulu" 
+                movies={huluMovies} 
+                onMovieClick={handleMovieClick}
+              />
+          }
+        </div>
+        
+        <div className="mb-8">
+          {loadingStates.funny 
+            ? <CarouselSkeleton /> 
+            : <MovieCarousel 
+                title="Funny Movies" 
+                movies={funnyMovies} 
+                onMovieClick={handleMovieClick}
+              />
+          }
+        </div>
       </div>
 
       {/* Enhanced Features Section */}

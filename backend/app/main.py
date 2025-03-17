@@ -5,17 +5,17 @@ from sqlalchemy.orm import Session
 
 from sqlalchemy.sql.expression import func
 from fastapi import Request
-from sqlalchemy import cast, Integer
+from sqlalchemy import cast, Integer, text
+from sqlalchemy import or_, desc, asc
 
 from typing import List, Optional
 import time
-from sqlalchemy import or_, desc, asc
 import requests
 import uvicorn
 import os
+import threading
 from dotenv import load_dotenv
 from datetime import datetime
-from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError  
 from pydantic import BaseModel  
 from difflib import SequenceMatcher
@@ -34,6 +34,9 @@ from .routers.auth import router as auth_router
 
 # Load environment variables
 load_dotenv()
+
+# Global flag to control the keep alive thread
+keep_alive_running = True
 
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 OMDB_API_KEY = os.getenv("OMDB_API_KEY")
@@ -190,6 +193,25 @@ async def fetch_imdb_data(title: str, year: int, retry_count: int = 0) -> dict:
     
     return None
 
+def db_keep_alive():
+    """Background thread to keep the database connection alive"""
+    print("Starting database keep-alive thread")
+    
+    # Wait for initial app startup to complete
+    time.sleep(10)
+    
+    while keep_alive_running:
+        try:
+            # Get a new DB session
+            with SessionLocal() as db:
+                # Execute a simple query
+                result = db.execute(text("SELECT 1")).scalar()
+                print(f"Keep-alive ping executed: {result}", flush=True)
+        except Exception as e:
+            print(f"Error in keep-alive ping: {str(e)}", flush=True)
+        
+        # Sleep for 20 minutes (slightly less than typical 30 minute timeout)
+        time.sleep(20 * 60)
 
 def process_imdb_data(data: dict) -> dict:
     """Process and validate IMDB API response data"""
@@ -574,6 +596,9 @@ async def startup_event():
             # Only load first 10 pages during startup
             await load_initial_movies(db, pages=10)
             
+        keep_alive_thread = threading.Thread(target=db_keep_alive, daemon=True)
+        keep_alive_thread.start()
+        print("Database keep-alive thread started")
     except Exception as e:
         print(f"Error during startup: {str(e)}")
         raise
@@ -1380,3 +1405,9 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 10000))
     uvicorn.run(app, host="0.0.0.0", port=port)
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    global keep_alive_running
+    keep_alive_running = False
+    print("Shutting down database keep-alive thread")
