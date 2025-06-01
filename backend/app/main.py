@@ -1,4 +1,3 @@
-# backend/app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -31,7 +30,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Movie Recommender", lifespan=lifespan)
 
-# CORS middleware configuration
+# CORS middleware configuration - MUST be before route includes
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -39,16 +38,36 @@ app.add_middleware(
         "http://localhost:8000",    # FastAPI server
         "http://127.0.0.1:5173",
         "http://127.0.0.1:8000",
-        "https://cineverse1.vercel.app",
-        "https://www.cineverse1.vercel.app",
-        "cineverse1.vercel.app"
+        "https://cineverse-lo6nex0fh-dio27073s-projects.vercel.app",  # FIXED: Correct domain
+        "https://*.vercel.app",     # Allow all Vercel preview deployments
+        "*"  # Temporary: allow all origins for debugging
     ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
+    allow_headers=[
+        "Accept",
+        "Accept-Language",
+        "Content-Language",
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Origin",
+        "Access-Control-Request-Method",
+        "Access-Control-Request-Headers",
+    ],
     expose_headers=["*"],
     max_age=3600
 )
+
+# Add a simple OPTIONS handler to catch all preflight requests
+@app.options("/{path:path}")
+async def preflight_handler():
+    return {"message": "OK"}
+
+# Add a simple root endpoint
+@app.get("/")
+async def root():
+    return {"message": "Movie Recommender API", "status": "running"}
 
 # Include routers
 app.include_router(
