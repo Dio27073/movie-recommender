@@ -21,7 +21,6 @@ interface MovieResponse {
   has_prev: boolean;
 }
 
-// Cache interface
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
@@ -30,17 +29,21 @@ interface CacheEntry<T> {
 class ApiService {
   private token: string | null = null;
   private cache: Map<string, CacheEntry<any>> = new Map();
-  private CACHE_TTL: number = 5 * 60 * 1000; // 5 minutes cache TTL
+  private CACHE_TTL: number = 5 * 60 * 1000; // 5 minutes
+  private keepAliveInterval: NodeJS.Timeout | null = null;
+  private isBackendReady: boolean = false;
 
   constructor() {
-    // Initialize token from storage when service is created
     const token = localStorage.getItem('auth_token');
     if (token) {
       this.setToken(token);
     }
     
     // Setup periodic cache cleanup
-    setInterval(() => this.cleanupCache(), 15 * 60 * 1000); // Clean every 15 minutes
+    setInterval(() => this.cleanupCache(), 15 * 60 * 1000);
+    
+    // Start keep-alive ping
+    this.startKeepAlive();
   }
 
   setToken(token: string | null) {
@@ -51,9 +54,27 @@ class ApiService {
       localStorage.removeItem('auth_token');
     }
   }
-  
+
+  private startKeepAlive() {
+    // Ping every 10 minutes to keep backend warm
+    this.keepAliveInterval = setInterval(async () => {
+      try {
+        await fetch(`${API_URL}/keep-alive`);
+        console.log('Keep-alive ping sent');
+      } catch (error) {
+        console.warn('Keep-alive ping failed:', error);
+      }
+    }, 10 * 60 * 1000); // 10 minutes
+  }
+
+  private stopKeepAlive() {
+    if (this.keepAliveInterval) {
+      clearInterval(this.keepAliveInterval);
+      this.keepAliveInterval = null;
+    }
+  }
+
   private cleanupCache() {
-    console.log('Cleaning up expired cache entries');
     const now = Date.now();
     let expiredCount = 0;
     
@@ -64,18 +85,21 @@ class ApiService {
       }
     });
     
-    console.log(`Removed ${expiredCount} expired cache entries`);
+    if (expiredCount > 0) {
+      console.log(`Removed ${expiredCount} expired cache entries`);
+    }
   }
 
   private getCacheKey(endpoint: string, options: RequestInit): string {
-    // Create a unique key based on the endpoint and request options
     return `${endpoint}:${JSON.stringify(options)}`;
   }
 
+  // Enhanced request method with cold start handling
   private async request<T>(
     endpoint: string,
     options: RequestInit = {},
-    useCache: boolean = true // New parameter to control caching
+    useCache: boolean = true,
+    retries: number = 3
   ): Promise<T> {
     const url = `${API_URL}${endpoint}`;
     const headers: Record<string, string> = {
@@ -96,63 +120,127 @@ class ApiService {
       mode: 'cors' as RequestMode
     };
 
-    // Don't use cache for non-GET requests or if explicitly disabled
+    // Check cache first for GET requests
     const shouldUseCache = useCache && (!options.method || options.method === 'GET');
     
     if (shouldUseCache) {
       const cacheKey = this.getCacheKey(endpoint, config);
       const cachedEntry = this.cache.get(cacheKey);
       
-      // Return cached data if valid
       if (cachedEntry && (Date.now() - cachedEntry.timestamp < this.CACHE_TTL)) {
         console.log(`Using cached data for: ${url}`);
         return cachedEntry.data;
       }
     }
 
-    try {
-      console.log(`Making request to: ${url}`);
-      console.log('Request config:', config);
-
-      const response = await fetch(url, config);
-      
-      console.log('Response status:', response.status);
-
-      let data;
-      const textResponse = await response.text();
-      console.log('Raw response:', textResponse);
-
+    // Retry logic for cold starts
+    for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        data = JSON.parse(textResponse);
-      } catch (e) {
-        console.error('Failed to parse JSON:', e);
-        throw new Error('Invalid JSON response from server');
-      }
-
-      if (!response.ok) {
-        console.error('Request failed:', data);
-        throw new Error((data as ApiError).detail || 'An error occurred');
-      }
-
-      // Cache successful GET responses
-      if (shouldUseCache) {
-        const cacheKey = this.getCacheKey(endpoint, config);
-        this.cache.set(cacheKey, {
-          data: data,
-          timestamp: Date.now()
+        console.log(`Making request to: ${url} (attempt ${attempt})`);
+        
+        // Longer timeout for first attempt (cold start)
+        const timeoutMs = attempt === 1 ? 90000 : 30000; // 90s first attempt, 30s others
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        
+        const response = await fetch(url, {
+          ...config,
+          signal: controller.signal
         });
-        console.log(`Cached response for: ${url}`);
-      }
+        
+        clearTimeout(timeoutId);
+        
+        console.log(`Response status: ${response.status}`);
 
-      return data as T;
+        let data;
+        const textResponse = await response.text();
+
+        try {
+          data = JSON.parse(textResponse);
+        } catch (e) {
+          console.error('Failed to parse JSON:', e);
+          throw new Error('Invalid JSON response from server');
+        }
+
+        if (!response.ok) {
+          console.error('Request failed:', data);
+          throw new Error((data as ApiError).detail || 'An error occurred');
+        }
+
+        // Mark backend as ready after first successful request
+        if (!this.isBackendReady) {
+          this.isBackendReady = true;
+          console.log('Backend is now ready');
+        }
+
+        // Cache successful GET responses
+        if (shouldUseCache) {
+          const cacheKey = this.getCacheKey(endpoint, config);
+          this.cache.set(cacheKey, {
+            data: data,
+            timestamp: Date.now()
+          });
+        }
+
+        return data as T;
+        
+      } catch (error) {
+        console.error(`Request attempt ${attempt} failed:`, error);
+        
+        // If it's the last attempt, throw the error
+        if (attempt === retries) {
+          throw error instanceof Error ? error : new Error('An error occurred');
+        }
+        
+        // Wait before retrying (exponential backoff)
+        const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+        console.log(`Waiting ${waitTime}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+    }
+
+    throw new Error('Max retries exceeded');
+  }
+
+  // Health check method
+  async checkHealth(): Promise<{ status: string; initialization_complete: boolean }> {
+    try {
+      return await this.request<{ status: string; initialization_complete: boolean }>(
+        '/health', 
+        {}, 
+        false, // Don't cache health checks
+        1 // Only one attempt for health check
+      );
     } catch (error) {
-      console.error('Request error:', error);
-      throw error instanceof Error ? error : new Error('An error occurred');
+      return { status: 'unhealthy', initialization_complete: false };
     }
   }
 
+  // Wait for backend to be ready
+  async waitForBackend(maxWaitMs: number = 90000): Promise<void> {
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < maxWaitMs) {
+      try {
+        const health = await this.checkHealth();
+        if (health.status === 'healthy') {
+          this.isBackendReady = true;
+          console.log('Backend is ready!');
+          return;
+        }
+      } catch (error) {
+        // Continue waiting
+      }
+      
+      // Wait 2 seconds before next check
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    
+    throw new Error('Backend failed to start within timeout period');
+  }
+
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
-    // Don't cache authentication requests
     return this.request<AuthResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(credentials)
@@ -160,7 +248,6 @@ class ApiService {
   }
 
   async register(credentials: RegisterCredentials): Promise<AuthResponse> {
-    // Don't cache registration requests
     return this.request<AuthResponse>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(credentials)
@@ -171,17 +258,13 @@ class ApiService {
     if (!this.token) {
       throw new Error('No authentication token');
     }
-    // Cache current user for 1 minute
-    const currentUserCacheTTL = 60 * 1000; 
-    const cachedUser = this.cache.get('currentUser');
     
-    if (cachedUser && (Date.now() - cachedUser.timestamp < currentUserCacheTTL)) {
+    const cachedUser = this.cache.get('currentUser');
+    if (cachedUser && (Date.now() - cachedUser.timestamp < 60000)) {
       return cachedUser.data;
     }
     
-    const user = await this.request<User>('/auth/me', {
-      method: 'GET'
-    });
+    const user = await this.request<User>('/auth/me', { method: 'GET' });
     
     this.cache.set('currentUser', {
       data: user,
@@ -189,53 +272,6 @@ class ApiService {
     });
     
     return user;
-  }
-
-  async getRecommendations(filters: RecommendationFilters = {}): Promise<RecommendationResponse> {
-    if (!this.token) {
-      throw new Error('Authentication required for recommendations');
-    }
-
-    // Get current user to get the user ID
-    const user = await this.getCurrentUser();
-
-    const queryParams = new URLSearchParams();
-
-    // Convert snake_case to camelCase for backend compatibility
-    if (filters.excludeWatched !== undefined) {
-      queryParams.append('exclude_watched', filters.excludeWatched.toString());
-    }
-    if (filters.minRating !== undefined) {
-      queryParams.append('min_rating', filters.minRating.toString());
-    }
-    if (filters.strategy) {
-      queryParams.append('strategy', filters.strategy);
-    }
-    if (filters.genres?.length) {
-      filters.genres.forEach(genre => queryParams.append('genres', genre));
-    }
-    if (filters.page) {
-      queryParams.append('page', filters.page.toString());
-    }
-    if (filters.per_page) {
-      queryParams.append('per_page', filters.per_page.toString());
-    }
-
-    const queryString = queryParams.toString();
-    return this.request<RecommendationResponse>(
-      `/api/recommender/recommendations/${user.id}${queryString ? `?${queryString}` : ''}`
-    );
-  }
-  
-  async getSimilarMovies(movieId: number): Promise<Movie[]> {
-    return this.request<Movie[]>(`/api/recommender/similar/${movieId}`);
-  }
-
-  async getRecentlyWatchedRecommendations(): Promise<Movie[]> {
-    if (!this.token) {
-      throw new Error('Authentication required');
-    }
-    return this.request<Movie[]>('/api/recommender/recently-watched');
   }
 
   async getMovies(params: {
@@ -251,9 +287,6 @@ class ApiService {
   } = {}): Promise<MovieResponse> {
     const queryParams = new URLSearchParams();
 
-    // Debug logging
-    console.log('Getting movies with params:', params);
-
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined) {
         if (Array.isArray(value)) {
@@ -265,21 +298,55 @@ class ApiService {
     });
 
     const queryString = queryParams.toString();
-    console.log('Final query string:', queryString);
-
-    // Don't cache random sorts
     const shouldCache = !params.sort || params.sort !== 'random';
     
-    const response = await this.request<MovieResponse>(
+    return await this.request<MovieResponse>(
       `/movies/?${queryString}`, 
       {}, 
       shouldCache
     );
-    
-    console.log('Movies response:', response);
-    return response;
   }
 
+  async getTrendingMovies(params: {
+    time_window?: 'month' | 'week';
+    page?: number;
+    per_page?: number;
+  } = {}): Promise<MovieResponse> {
+    try {
+      const queryParams = new URLSearchParams();
+      
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          queryParams.append(key, value.toString());
+        }
+      });
+
+      const response = await this.request<MovieResponse>(
+        `/movies/trending/?${queryParams.toString()}`
+      );
+
+      return {
+        items: response.items || [],
+        total: response.total || 0,
+        page: response.page || 1,
+        total_pages: response.total_pages || 1,
+        has_next: response.has_next || false,
+        has_prev: response.has_prev || false
+      };
+    } catch (error) {
+      console.error('Failed to fetch trending movies:', error);
+      return {
+        items: [],
+        total: 0,
+        page: 1,
+        total_pages: 1,
+        has_next: false,
+        has_prev: false
+      };
+    }
+  }
+
+  // Add graceful fallback for other methods
   async recordMovieView(
     movieId: number, 
     data: { completed: boolean; watch_duration?: number }
@@ -288,7 +355,7 @@ class ApiService {
       throw new Error('Authentication required');
     }
     
-    // Clear recommendations cache when recording a view
+    // Clear recommendations cache
     this.cache.forEach((_, key) => {
       if (key.includes('/api/recommender/recommendations/') || 
           key.includes('/api/recommender/recently-watched')) {
@@ -299,71 +366,7 @@ class ApiService {
     return this.request<void>(`/movies/${movieId}/view`, {
       method: 'POST',
       body: JSON.stringify(data),
-    }, false); // Don't cache POST requests
-  }
-
-  async updateRecommendationPreferences(preferences: UserPreferences): Promise<void> {
-    if (!this.token) {
-      throw new Error('Authentication required');
-    }
-
-    // Clear all recommendation caches when updating preferences
-    this.cache.forEach((_, key) => {
-      if (key.includes('/api/recommender/')) {
-        this.cache.delete(key);
-      }
-    });
-
-    return this.request<void>('/api/recommender/preferences', {
-      method: 'PUT',
-      body: JSON.stringify(preferences),
     }, false);
-  }
-
-  async rateMovie(rating: Rating): Promise<RatingResponse> {
-    // Don't cache rating requests and invalidate affected movie caches
-    const response = await this.request<RatingResponse>(`/movies/${rating.movie_id}/rate`, {
-      method: 'POST',
-      body: JSON.stringify(rating)
-    }, false);
-    
-    // Invalidate any cached data for this movie
-    this.cache.forEach((_, key) => {
-      if (key.includes(`${rating.movie_id}`)) {
-        this.cache.delete(key);
-      }
-    });
-    
-    return response;
-  }
-
-  async getTrendingRecommendations(): Promise<Movie[]> {
-    return this.request<Movie[]>('/api/recommender/trending');
-  }
-
-  async getGenreRecommendations(genre: string): Promise<Movie[]> {
-    return this.request<Movie[]>(`/api/recommender/genre/${genre}`);
-  }
-
-  async getViewingHistory(): Promise<{
-    movie_id: number;
-    watched_at: string;
-    completed: boolean;
-    watch_duration?: number;
-  }[]> {
-    if (!this.token) {
-      throw new Error('Authentication required');
-    }
-    
-    return this.request<any[]>('/movies/history');
-  }
-
-  async getUserPreferences(): Promise<UserPreferences> {
-    if (!this.token) {
-      throw new Error('Authentication required');
-    }
-    
-    return this.request<UserPreferences>('/api/recommender/preferences');
   }
 
   async getUserLibrary() {
@@ -371,89 +374,15 @@ class ApiService {
       method: 'GET'
     });
   }
-  
-  async addToLibrary(movieId: number) {
-    // Clear library cache
-    this.cache.delete('/api/users/me/library');
-    
-    return this.request<any>(`/api/movies/${movieId}/view`, {
-      method: 'POST',
-      body: JSON.stringify({ completed: true })
-    }, false);
-  }
-  
-  async removeFromLibrary(movieId: number) {
-    // Clear library cache
-    this.cache.delete('/api/users/me/library');
-    
-    return this.request<any>(`/api/movies/${movieId}/view`, {
-      method: 'DELETE'
-    }, false);
-  }
-  
-  async getMovieDetails(movieId: number) {
-    const response = await this.request<{
-      items: Movie[];
-      total: number;
-      page: number;
-      total_pages: number;
-    }>(`/movies/?id=${movieId}`);
-    return response;
-  }
-  
-  getStreamUrl(movieId: string): string {
-    // Handle both IMDB and TMDB IDs
-    const id = movieId.startsWith('tt') ? movieId : `tt${movieId}`;
-    return `https://vidsrc.icu/embed/movie/${id}`;
-  }
 
-  async getTrendingMovies(params: {
-    time_window?: 'month' | 'week';
-    page?: number;
-    per_page?: number;
-  } = {}): Promise<MovieResponse> {
-    try {
-        const queryParams = new URLSearchParams();
-        
-        Object.entries(params).forEach(([key, value]) => {
-            if (value !== undefined) {
-                queryParams.append(key, value.toString());
-            }
-        });
-
-        console.log('Fetching trending movies with params:', params);
-        const response = await this.request<MovieResponse>(
-            `/movies/trending/?${queryParams.toString()}`
-        );
-        console.log('Trending movies response:', response);
-
-        if (!response) {
-            throw new Error('Empty response from trending movies endpoint');
-        }
-
-        return {
-            items: response.items || [],
-            total: response.total || 0,
-            page: response.page || 1,
-            total_pages: response.total_pages || 1,
-            has_next: response.has_next || false,
-            has_prev: response.has_prev || false
-        };
-    } catch (error) {
-        console.error('Failed to fetch trending movies:', error);
-        return {
-            items: [],
-            total: 0,
-            page: 1,
-            total_pages: 1,
-            has_next: false,
-            has_prev: false
-        };
-    }
+  // Cleanup method
+  destroy() {
+    this.stopKeepAlive();
+    this.cache.clear();
   }
 }
 
-// Create a singleton instance
+// Create singleton instance
 const apiService = new ApiService();
 
 export default apiService;
