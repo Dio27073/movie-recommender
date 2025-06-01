@@ -38,9 +38,9 @@ app.add_middleware(
         "http://localhost:8000",    # FastAPI server
         "http://127.0.0.1:5173",
         "http://127.0.0.1:8000",
-        "https://cineverse-lo6nex0fh-dio27073s-projects.vercel.app",  # FIXED: Correct domain
-        "https://*.vercel.app",     # Allow all Vercel preview deployments
-        "*"  # Temporary: allow all origins for debugging
+        "https://cineverse1.vercel.app",  # Primary domain (from error logs)
+        "https://cineverse-lo6nex0fh-dio27073s-projects.vercel.app",  # Preview domain
+        # REMOVED "*" because it conflicts with allow_credentials=True
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
