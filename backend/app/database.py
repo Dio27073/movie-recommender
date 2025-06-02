@@ -6,91 +6,83 @@ from sqlalchemy.pool import QueuePool
 import os
 import logging
 from typing import Generator
-
+import redis
 from dotenv import load_dotenv
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
 if not DATABASE_URL:
     raise ValueError("No DATABASE_URL environment variable set")
 
-# Optimized engine configuration for cloud deployment
+# OPTIMIZED: More conservative pool settings for free tier
 engine = create_engine(
     DATABASE_URL,
-    # Optimized pooling for cloud/session pooler
     poolclass=QueuePool,
-    pool_size=3,  # Reduced for free tier limits
-    max_overflow=0,  # No overflow to prevent connection spikes
-    pool_timeout=20,  # Shorter timeout for faster failure detection
-    pool_recycle=300,  # 5 minutes - good for cloud connections
-    pool_pre_ping=True,  # Essential for cloud reliability
+    pool_size=2,  # Reduced from 3 for better resource management
+    max_overflow=1,  # Allow minimal overflow
+    pool_timeout=30,  # Increased timeout for stability
+    pool_recycle=1800,  # 30 minutes - longer for fewer reconnections
+    pool_pre_ping=True,
     
-    # Connection optimization
     connect_args={
         "sslmode": "require",
         "application_name": "movie_recommender",
-        # TCP keepalive settings for cloud stability
+        # OPTIMIZED: Simpler keepalive settings
         "keepalives": 1,
-        "keepalives_idle": 30,
-        "keepalives_interval": 10,
-        "keepalives_count": 5,
-        # Connection timeouts
+        "keepalives_idle": 600,  # 10 minutes
+        "keepalives_interval": 30,
+        "keepalives_count": 3,
         "connect_timeout": 10,
     },
     
-    # Performance settings
-    echo=False,  # Set to True only for debugging
+    echo=False,
     echo_pool=False,
-    # REMOVED: Redundant execution_options that might conflict
 )
 
-# Add connection event listeners for better monitoring
-@event.listens_for(engine, "connect")
-def set_postgresql_optimizations(dbapi_connection, connection_record):
-    """Optimize connection settings on connect"""
-    try:
-        # Set PostgreSQL-specific optimizations
-        with dbapi_connection.cursor() as cursor:
-            # Optimize for read-heavy workload
-            cursor.execute("SET default_statistics_target = 100")
-            cursor.execute("SET random_page_cost = 1.1")  # Good for SSD
-            cursor.execute("SET effective_cache_size = '128MB'")  # Conservative for free tier
-            dbapi_connection.commit()
-            logger.debug("Applied PostgreSQL optimizations")
-    except Exception as e:
-        logger.warning(f"Could not set connection optimizations: {e}")
+# OPTIMIZED: Apply connection settings only once, not on every connection
+_connection_optimized = False
 
-@event.listens_for(engine, "checkout")
-def receive_checkout(dbapi_connection, connection_record, connection_proxy):
-    """Log connection checkout for monitoring"""
-    logger.debug("Connection checked out from pool")
+@event.listens_for(engine, "first_connect")
+def set_postgresql_optimizations_once(dbapi_connection, connection_record):
+    """Apply optimizations only on first connection"""
+    global _connection_optimized
+    if not _connection_optimized:
+        try:
+            with dbapi_connection.cursor() as cursor:
+                cursor.execute("SET default_statistics_target = 100")
+                cursor.execute("SET random_page_cost = 1.1")
+                cursor.execute("SET effective_cache_size = '128MB'")
+                dbapi_connection.commit()
+                logger.info("Applied PostgreSQL optimizations (one-time)")
+                _connection_optimized = True
+        except Exception as e:
+            logger.warning(f"Could not set connection optimizations: {e}")
 
-@event.listens_for(engine, "checkin")
-def receive_checkin(dbapi_connection, connection_record):
-    """Log connection checkin for monitoring"""
-    logger.debug("Connection returned to pool")
+# Initialize Redis for caching
+try:
+    redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+    redis_client.ping()
+    logger.info("Redis connection established")
+except Exception as e:
+    logger.warning(f"Redis not available: {e}")
+    redis_client = None
 
-# REMOVED: Connection test during module import - this was causing startup failure
-# Connection test will be done during startup_database() function instead
-
-# Optimized session configuration
 SessionLocal = sessionmaker(
     autocommit=False,
-    autoflush=False,  # Manual flush for better control
+    autoflush=False,
     bind=engine,
-    expire_on_commit=False  # Keep objects usable after commit
+    expire_on_commit=False
 )
 
 Base = declarative_base()
 
-# Optimized dependency injection
 def get_db() -> Generator:
-    """
-    Optimized database dependency with proper error handling
-    """
+    """Optimized database dependency"""
     db = SessionLocal()
     try:
         yield db
@@ -103,9 +95,7 @@ def get_db() -> Generator:
 
 @contextmanager
 def get_db_context():
-    """
-    Context manager for database sessions with automatic commit/rollback
-    """
+    """Context manager with automatic handling"""
     db = SessionLocal()
     try:
         yield db
@@ -117,55 +107,84 @@ def get_db_context():
     finally:
         db.close()
 
-# Database utilities for common operations
+class CacheUtils:
+    """Redis caching utilities"""
+    
+    @staticmethod
+    def get(key: str):
+        """Get value from cache"""
+        if not redis_client:
+            return None
+        try:
+            return redis_client.get(key)
+        except Exception as e:
+            logger.warning(f"Cache get error: {e}")
+            return None
+    
+    @staticmethod
+    def set(key: str, value: str, ttl: int = 3600):
+        """Set value in cache with TTL"""
+        if not redis_client:
+            return False
+        try:
+            return redis_client.setex(key, ttl, value)
+        except Exception as e:
+            logger.warning(f"Cache set error: {e}")
+            return False
+    
+    @staticmethod
+    def delete(key: str):
+        """Delete key from cache"""
+        if not redis_client:
+            return False
+        try:
+            return redis_client.delete(key)
+        except Exception as e:
+            logger.warning(f"Cache delete error: {e}")
+            return False
+
 class DatabaseUtils:
-    """Utility class for common database operations"""
+    """Optimized database utilities"""
     
     @staticmethod
     def get_table_stats():
-        """Get basic statistics about database tables"""
+        """Get cached database statistics"""
+        cache_key = "db_stats"
+        cached_stats = CacheUtils.get(cache_key)
+        
+        if cached_stats:
+            import json
+            return json.loads(cached_stats)
+        
         try:
             with get_db_context() as db:
                 stats = {}
-                # Get row counts for main tables
-                tables = ['movies', 'users', 'ratings', 'viewing_history']
-                for table in tables:
-                    try:
-                        result = db.execute(text(f"SELECT COUNT(*) FROM {table}"))
-                        stats[table] = result.scalar()
-                    except Exception as e:
-                        logger.warning(f"Could not get count for table {table}: {e}")
-                        stats[table] = 0
+                # Single query for all table counts
+                result = db.execute(text("""
+                    SELECT 
+                        'movies' as table_name, COUNT(*) as count FROM movies
+                    UNION ALL
+                    SELECT 'users', COUNT(*) FROM users
+                    UNION ALL  
+                    SELECT 'ratings', COUNT(*) FROM ratings
+                    UNION ALL
+                    SELECT 'viewing_history', COUNT(*) FROM viewing_history
+                """))
                 
-                # Get database size
-                try:
-                    result = db.execute(text("""
-                        SELECT pg_size_pretty(pg_database_size(current_database())) as size
-                    """))
-                    stats['database_size'] = result.scalar()
-                except Exception as e:
-                    logger.warning(f"Could not get database size: {e}")
-                    stats['database_size'] = 'unknown'
+                for row in result:
+                    stats[row.table_name] = row.count
                 
+                # Cache for 5 minutes
+                import json
+                CacheUtils.set(cache_key, json.dumps(stats), 300)
                 return stats
         except Exception as e:
             logger.error(f"Error getting table stats: {e}")
             return {}
     
     @staticmethod
-    def optimize_database():
-        """Run database optimization commands"""
-        try:
-            with get_db_context() as db:
-                # Update table statistics
-                db.execute(text("ANALYZE"))
-                logger.info("Database optimization completed")
-        except Exception as e:
-            logger.error(f"Error optimizing database: {e}")
-    
-    @staticmethod
     def check_connection_health():
-        """Check if database connection is healthy"""
+        """Quick connection health check"""
         try:
             with get_db_context() as db:
                 db.execute(text("SELECT 1"))
@@ -174,60 +193,33 @@ class DatabaseUtils:
             logger.error(f"Database health check failed: {e}")
             return False
 
-# Startup and shutdown functions
+# REMOVED: Keep-alive task is redundant with pool_pre_ping=True
 async def startup_database():
-    """Initialize database connections and run startup tasks"""
+    """Optimized database startup"""
     try:
         logger.info("Starting database initialization...")
         
-        # Test connection and get database info
+        # Quick connection test
         with engine.connect() as connection:
-            result = connection.execute(text("""
-                SELECT 
-                    current_setting('server_version') as version,
-                    current_database() as database_name,
-                    current_user as user_name
-            """))
-            row = result.fetchone()
-            logger.info(f"Successfully connected to PostgreSQL:")
-            logger.info(f"Version: {row.version}")
-            logger.info(f"Database: {row.database_name}")
-            logger.info(f"User: {row.user_name}")
-            
-            # Test basic query performance
-            result = connection.execute(text("SELECT COUNT(*) FROM information_schema.tables"))
-            table_count = result.scalar()
-            logger.info(f"Database has {table_count} tables")
+            result = connection.execute(text("SELECT current_setting('server_version')"))
+            version = result.scalar()
+            logger.info(f"Connected to PostgreSQL {version}")
         
-        # Get initial stats
+        # Get stats asynchronously
         stats = DatabaseUtils.get_table_stats()
-        logger.info(f"Database initialized. Stats: {stats}")
+        logger.info(f"Database ready. Stats: {stats}")
         
     except Exception as e:
         logger.error(f"Database startup failed: {e}")
         raise
 
 async def shutdown_database():
-    """Clean shutdown of database connections"""
+    """Clean shutdown"""
     try:
-        logger.info("Shutting down database connections...")
+        logger.info("Shutting down database...")
         engine.dispose()
+        if redis_client:
+            redis_client.close()
         logger.info("Database shutdown completed")
     except Exception as e:
         logger.error(f"Database shutdown error: {e}")
-
-# Connection monitoring
-def get_pool_status():
-    """Get current connection pool status"""
-    try:
-        pool = engine.pool
-        return {
-            "pool_size": pool.size(),
-            "checked_in": pool.checkedin(),
-            "checked_out": pool.checkedout(),
-            "overflow": pool.overflow(),
-            "invalid": pool.invalid()
-        }
-    except Exception as e:
-        logger.error(f"Error getting pool status: {e}")
-        return {"error": str(e)}

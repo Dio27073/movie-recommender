@@ -1,10 +1,10 @@
 from sqlalchemy import (
     Boolean, Column, ForeignKey, Integer, String, Float, 
-    CheckConstraint, DateTime, Text, Index  # REMOVED ARRAY from here
+    CheckConstraint, DateTime, Text, Index
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from sqlalchemy.dialects.postgresql import JSON, ARRAY  # MOVED ARRAY to here
+from sqlalchemy.dialects.postgresql import JSON
 from .database import Base
 
 class Configuration(Base):
@@ -103,12 +103,7 @@ class Movie(Base):
         Index('ix_movies_year_rating', 'release_year', 'imdb_rating'),
         Index('ix_movies_content_rating', 'content_rating'),
         
-        # GIN indexes for array and full-text search (PostgreSQL specific)
-        Index('ix_movies_genres_gin', 'genres', postgresql_using='gin'),
-        Index('ix_movies_cast_gin', 'cast', postgresql_using='gin'),
-        Index('ix_movies_crew_gin', 'crew', postgresql_using='gin'),
-        Index('ix_movies_mood_tags_gin', 'mood_tags', postgresql_using='gin'),
-        Index('ix_movies_streaming_platforms_gin', 'streaming_platforms', postgresql_using='gin'),
+        # REMOVED: GIN indexes for arrays since we're using string columns
     )
 
     id = Column(Integer, primary_key=True)
@@ -124,13 +119,13 @@ class Movie(Base):
     imdb_votes = Column(Integer, nullable=True)
     trailer_url = Column(String(500), nullable=True)
 
-    # Use PostgreSQL ARRAY type for better performance (much better than comma-separated strings)
-    genres = Column(ARRAY(String), nullable=True)
-    cast = Column(ARRAY(String), nullable=True)  # Remove cast_members duplicate
-    crew = Column(ARRAY(String), nullable=True)
-    mood_tags = Column(ARRAY(String), nullable=True)
-    streaming_platforms = Column(ARRAY(String), nullable=True)
-    keywords = Column(ARRAY(String), nullable=True)
+    # FIXED: Use String type to match your actual database (comma-separated strings)
+    genres = Column(String, nullable=True)  # Store as comma-separated string
+    cast = Column(String, nullable=True)    # Store as comma-separated string
+    crew = Column(String, nullable=True)    # Store as comma-separated string
+    mood_tags = Column(String, nullable=True)  # Store as comma-separated string
+    streaming_platforms = Column(String, nullable=True)  # Store as comma-separated string
+    keywords = Column(String, nullable=True)  # Store as comma-separated string
     
     # Content Rating
     content_rating = Column(String(10), nullable=True)
@@ -145,7 +140,7 @@ class Movie(Base):
     # Recommendation tracking
     last_recommended_at = Column(DateTime(timezone=True), nullable=True)
     recommendation_count = Column(Integer, default=0, nullable=False)
-    similar_movies = Column(ARRAY(Integer), nullable=True)  # Array of movie IDs
+    similar_movies = Column(String, nullable=True)  # Comma-separated movie IDs
     
     # Relationships
     movie_ratings = relationship("Rating", back_populates="movie", cascade="all, delete-orphan")

@@ -65,4 +65,5 @@ wrapt==1.17.2
 psycopg2-binary==2.9.9  # Add this line
 beautifulsoup4==4.12.2
 lxml==4.9.3
+redis>=4.5.0
 

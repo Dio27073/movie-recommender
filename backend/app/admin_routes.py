@@ -7,7 +7,7 @@ import time
 
 from . import models, schemas
 from .database import get_db
-from .movie_processing import load_initial_movies, get_recommender
+from .movie_processing import load_initial_movies_optimized
 from .external_apis import fetch_imdb_data
 
 router = APIRouter()
@@ -28,7 +28,7 @@ async def load_more_movies(
         ).first()
         current_page = int(last_page_config.value) if last_page_config else 0
         
-        total_processed, total_skipped = await load_initial_movies(db, request.num_pages)
+        total_processed, total_skipped = await load_initial_movies_optimized(db, request.num_pages)
         
         # Get updated last processed page
         last_page_config = db.query(models.Configuration).filter(
@@ -36,26 +36,8 @@ async def load_more_movies(
         ).first()
         new_last_page = int(last_page_config.value) if last_page_config else current_page
         
-        # Initialize recommendation system for new movies
-        print("\nUpdating recommendation system...")
-        movies = db.query(models.Movie).all()
-        movies_data = [
-            {
-                "id": m.id,
-                "title": m.title,
-                "genres": m.genres,
-                "director": m.crew.split(",")[0] if m.crew else "",
-                "cast": m.cast,
-                "description": m.description,
-                "keywords": m.keywords,
-                "mood_tags": m.mood_tags,
-                "content_rating": m.content_rating,
-                "streaming_platforms": m.streaming_platforms
-            } for m in movies
-        ]
-        
-        recommender = get_recommender()
-        recommender.prepare_content_features(movies_data)
+        # REMOVED: Recommender functionality
+        print(f"Movie loading completed: {total_processed} processed, {total_skipped} skipped")
             
         return {
             "status": "success",
@@ -192,7 +174,7 @@ async def cleanup_duplicate_movies(db: Session = Depends(get_db)):
                     (m.imdb_rating or 0),
                     1 if m.imdb_id else 0,
                     1 if m.trailer_url else 0,
-                    len(m.genres.split(',')) if m.genres else 0
+                    len(m.genres) if m.genres else 0  # FIXED: Handle array properly
                 ))
                 
                 # Delete others
