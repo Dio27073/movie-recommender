@@ -82,6 +82,7 @@ async def lifespan(app: FastAPI):
     
     yield
     
+    
     # Shutdown
     logger.info("Shutting down Movie Recommender API...")
     try:
