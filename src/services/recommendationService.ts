@@ -1,5 +1,5 @@
 import api from './api';
-import { Movie, RecommendationResponse } from '../features/movies/types';
+import { Movie, RecommendationResponse, UserPreferences } from '../features/movies/types';
 
 export interface RecommendationFilters {
   strategy?: 'hybrid' | 'content' | 'collaborative';
@@ -46,11 +46,7 @@ export const recommendationService = {
   },
 
   // Update user preferences
-  updatePreferences: async (preferences: {
-    favorite_genres?: string[];
-    preferred_languages?: string[];
-    content_preferences?: Record<string, any>;
-  }) => {
+  updatePreferences: async (preferences: UserPreferences) => {
     return api.updateRecommendationPreferences(preferences);
   },
 

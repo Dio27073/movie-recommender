@@ -66,7 +66,7 @@ export const MovieDetails: React.FC = () => {
           setLoading(true);
           const id = location.pathname.split('/').pop();
           const response = await apiService.getMovieDetails(parseInt(id!));
-          setMovieData(response.items[0]);
+          setMovieData(response); // Fixed: response is already a Movie object
         } catch (err) {
           setError(err instanceof Error ? err.message : 'Failed to fetch movie details');
         } finally {
@@ -204,4 +204,4 @@ export const MovieDetails: React.FC = () => {
   );
 };
 
-export default MovieDetails; // Add this line
+export default MovieDetails;

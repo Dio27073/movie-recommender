@@ -1,11 +1,11 @@
 import {
   Movie,
-  Rating,
   RatingResponse,
   ApiError,
   RecommendationResponse,
   RecommendationFilters,
-  UserPreferences
+  UserPreferences,
+  LibraryMovie,
 } from '../features/movies/types';
 
 import { AuthResponse, LoginCredentials, RegisterCredentials, User } from './authService';
@@ -346,7 +346,148 @@ class ApiService {
     }
   }
 
-  // Add graceful fallback for other methods
+  // Movie Details
+  async getMovieDetails(movieId: number): Promise<Movie> {
+    return this.request<Movie>(`/movies/${movieId}`);
+  }
+
+  // Rating Methods
+  async rateMovie(movieId: number, rating: number): Promise<RatingResponse> {
+    if (!this.token) {
+      throw new Error('Authentication required');
+    }
+    
+    // Clear relevant caches
+    this.cache.forEach((_, key) => {
+      if (key.includes(`/movies/${movieId}`) || 
+          key.includes('/api/users/me/library')) {
+        this.cache.delete(key);
+      }
+    });
+    
+    return this.request<RatingResponse>(`/movies/${movieId}/rate`, {
+      method: 'POST',
+      body: JSON.stringify({ rating })
+    }, false);
+  }
+
+  // Library Methods
+  async addToLibrary(movieId: number): Promise<void> {
+    if (!this.token) {
+      throw new Error('Authentication required');
+    }
+    
+    // Clear library cache
+    this.cache.forEach((_, key) => {
+      if (key.includes('/api/users/me/library')) {
+        this.cache.delete(key);
+      }
+    });
+    
+    return this.request<void>(`/api/users/me/library/add`, {
+      method: 'POST',
+      body: JSON.stringify({ movie_id: movieId })
+    }, false);
+  }
+
+  async removeFromLibrary(movieId: number): Promise<void> {
+    if (!this.token) {
+      throw new Error('Authentication required');
+    }
+    
+    // Clear library cache
+    this.cache.forEach((_, key) => {
+      if (key.includes('/api/users/me/library')) {
+        this.cache.delete(key);
+      }
+    });
+    
+    return this.request<void>(`/api/users/me/library/remove/${movieId}`, {
+      method: 'DELETE'
+    }, false);
+  }
+
+  async getUserLibrary(): Promise<LibraryMovie[]> {
+    if (!this.token) {
+      throw new Error('Authentication required');
+    }
+    
+    return this.request<LibraryMovie[]>('/api/users/me/library', {
+      method: 'GET'
+    });
+  }
+
+  // Recommendation Methods
+  async getRecommendations(filters: RecommendationFilters = {}): Promise<RecommendationResponse> {
+    if (!this.token) {
+      throw new Error('Authentication required');
+    }
+    
+    const queryParams = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined) {
+        if (Array.isArray(value)) {
+          value.forEach(v => queryParams.append(key, v.toString()));
+        } else {
+          queryParams.append(key, value.toString());
+        }
+      }
+    });
+    
+    return this.request<RecommendationResponse>(
+      `/api/recommender/recommendations/?${queryParams.toString()}`
+    );
+  }
+
+  async getSimilarMovies(movieId: number): Promise<Movie[]> {
+    return this.request<Movie[]>(`/api/recommender/movies/${movieId}/similar`);
+  }
+
+  async getRecentlyWatchedRecommendations(): Promise<Movie[]> {
+    if (!this.token) {
+      throw new Error('Authentication required');
+    }
+    
+    return this.request<Movie[]>('/api/recommender/recently-watched');
+  }
+
+  async getTrendingRecommendations(): Promise<Movie[]> {
+    return this.request<Movie[]>('/api/recommender/trending');
+  }
+
+  async getGenreRecommendations(genre: string): Promise<Movie[]> {
+    return this.request<Movie[]>(`/api/recommender/genre/${encodeURIComponent(genre)}`);
+  }
+
+  // User Preferences
+  async updateRecommendationPreferences(preferences: UserPreferences): Promise<void> {
+    if (!this.token) {
+      throw new Error('Authentication required');
+    }
+    
+    // Clear preferences and recommendations cache
+    this.cache.forEach((_, key) => {
+      if (key.includes('/api/users/me/preferences') || 
+          key.includes('/api/recommender/')) {
+        this.cache.delete(key);
+      }
+    });
+    
+    return this.request<void>('/api/users/me/preferences', {
+      method: 'PUT',
+      body: JSON.stringify(preferences)
+    }, false);
+  }
+
+  async getUserPreferences(): Promise<UserPreferences> {
+    if (!this.token) {
+      throw new Error('Authentication required');
+    }
+    
+    return this.request<UserPreferences>('/api/users/me/preferences');
+  }
+
+  // Viewing History
   async recordMovieView(
     movieId: number, 
     data: { completed: boolean; watch_duration?: number }
@@ -355,10 +496,10 @@ class ApiService {
       throw new Error('Authentication required');
     }
     
-    // Clear recommendations cache
+    // Clear recommendations and history cache
     this.cache.forEach((_, key) => {
-      if (key.includes('/api/recommender/recommendations/') || 
-          key.includes('/api/recommender/recently-watched')) {
+      if (key.includes('/api/recommender/') || 
+          key.includes('/api/users/me/history')) {
         this.cache.delete(key);
       }
     });
@@ -369,10 +510,12 @@ class ApiService {
     }, false);
   }
 
-  async getUserLibrary() {
-    return this.request<any>('/api/users/me/library', {
-      method: 'GET'
-    });
+  async getViewingHistory(): Promise<any> {
+    if (!this.token) {
+      throw new Error('Authentication required');
+    }
+    
+    return this.request<any>('/api/users/me/history');
   }
 
   // Cleanup method

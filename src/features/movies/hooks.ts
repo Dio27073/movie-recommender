@@ -323,7 +323,8 @@ export const useRateMovie = () => {
     setError(null);
 
     try {
-      await apiService.rateMovie(rating);
+      // Fixed: Pass both movieId and rating value as separate arguments
+      await apiService.rateMovie(rating.movie_id, rating.rating);
       return true;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to rate movie';

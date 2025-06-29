@@ -58,16 +58,14 @@ export const LibraryMovieModal = ({
   const [fullDetails, setFullDetails] = useState<LibraryMovie | null>(null);
 
   useEffect(() => {
-  const fetchMovieDetails = async () => {
-    if (!movie) return;
-    
-    setIsLoading(true);
-    try {
-      const response = await api.getMovieDetails(movie.movie_id);
-      // Extract the correct movie from the paginated response
-      const movieDetails = response.items?.find(item => item.id === movie.movie_id);
+    const fetchMovieDetails = async () => {
+      if (!movie) return;
       
-      if (movieDetails) {
+      setIsLoading(true);
+      try {
+        const movieDetails = await api.getMovieDetails(movie.movie_id);
+        
+        // Convert the Movie to LibraryMovie format
         setFullDetails({ 
           ...movieDetails,
           // Convert id to movie_id to match LibraryMovie type
@@ -77,18 +75,14 @@ export const LibraryMovieModal = ({
           rating: movie.rating,
           completed: movie.completed
         });
-      } else {
-        // Fallback to library movie data if we can't find the movie in the response
+      } catch (error) {
+        console.error('Failed to fetch movie details:', error);
+        // Fallback to library movie data
         setFullDetails(movie);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error('Failed to fetch movie details:', error);
-      // Fallback to library movie data
-      setFullDetails(movie);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
 
     if (isOpen && movie) {
       fetchMovieDetails();

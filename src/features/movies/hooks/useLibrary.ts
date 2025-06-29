@@ -2,16 +2,8 @@ import { useState, useEffect } from 'react';
 import api from '../../../services/api';
 import { LibraryMovie } from '../types';
 
-interface LibraryData {
-  viewed_movies: LibraryMovie[];
-  rated_movies: LibraryMovie[];
-}
-
 export const useLibrary = () => {
-  const [libraryData, setLibraryData] = useState<LibraryData>({ 
-    viewed_movies: [], 
-    rated_movies: [] 
-  });
+  const [libraryMovies, setLibraryMovies] = useState<LibraryMovie[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,10 +11,8 @@ export const useLibrary = () => {
     try {
       setIsLoading(true);
       const response = await api.getUserLibrary();
-      setLibraryData({
-        viewed_movies: response.viewed_movies,
-        rated_movies: response.rated_movies
-      });
+      // The API returns LibraryMovie[] directly
+      setLibraryMovies(response);
       setError(null);
     } catch (error) {
       console.error('Error fetching library:', error);
@@ -56,9 +46,14 @@ export const useLibrary = () => {
     fetchLibrary();
   }, []);
 
+  // Split movies into watched and rated based on their properties
+  const watchedMovies = libraryMovies.filter(movie => movie.watched_at);
+  const ratedMovies = libraryMovies.filter(movie => movie.rating !== undefined && movie.rating !== null);
+
   return {
-    watchedMovies: libraryData.viewed_movies,
-    ratedMovies: libraryData.rated_movies,
+    watchedMovies,
+    ratedMovies,
+    allMovies: libraryMovies,
     isLoading,
     error,
     addToLibrary,
