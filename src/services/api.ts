@@ -205,14 +205,30 @@ class ApiService {
 
   // Health check method
   async checkHealth(): Promise<{ status: string; initialization_complete: boolean }> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+    
     try {
-      return await this.request<{ status: string; initialization_complete: boolean }>(
-        '/health', 
-        {}, 
-        false, // Don't cache health checks
-        1 // Only one attempt for health check
-      );
+      const response = await fetch(`${API_URL}/health`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        mode: 'cors',
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        return { status: 'unhealthy', initialization_complete: false };
+      }
+      
+      const data = await response.json();
+      return data;
     } catch (error) {
+      clearTimeout(timeoutId);
       return { status: 'unhealthy', initialization_complete: false };
     }
   }
